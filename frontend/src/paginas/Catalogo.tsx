@@ -21,7 +21,8 @@ export function Catalogo() {
       <header><div><h1>Catálogo</h1><p>Productos y planes con sus precios de lista. Los precios están en la moneda base.</p></div>{esSuper && <button className="btn" onClick={() => setNuevoProducto(true)}>+ Producto</button>}</header>
       {productos.map((p) => (
         <Tarjeta key={p.id} titulo={<>{p.nombre} <code className="clave">{p.codigo}</code>{!p.activo && <Estado valor="suspendida" />}</>}
-          acciones={<div className="fila"><span className="suave pequeno">{p.licencias_activas} activas / {p.licencias_total} licencias</span>
+          acciones={<div className="fila"><span className="suave pequeno">{p.licencias_activas} activas / {p.licencias_total} licencias{p.instalaciones_desactualizadas > 0 && <> · <span className="estado aviso">{p.instalaciones_desactualizadas} desactualizada(s)</span></>}</span>
+            {esSuper ? <VersionProducto producto={p} alGuardar={cargar} /> : p.version_actual && <span className="suave pequeno">v{p.version_actual}</span>}
             {esSuper && <><button className="btn secundario chico" onClick={() => { setPlanPara(p); setNplan({ codigo: '', nombre: '', tipo: 'mensual', precio: 0, max_activaciones: 1, comision_pct: '' }); }}>+ Plan</button>
               <BotonAccion texto={p.activo ? 'Desactivar' : 'Activar'} className="btn secundario chico" exito={p.activo ? 'Producto desactivado' : 'Producto activado'} onClick={async () => { await api.patch(`/productos/${p.id}`, { activo: !p.activo }); await cargar(); }} /></>}</div>}>
           {p.descripcion && <p className="suave" style={{ marginTop: 0 }}>{p.descripcion}</p>}
@@ -70,5 +71,17 @@ export function Catalogo() {
         )}
       </Modal>
     </>
+  );
+}
+
+/** Versión vigente del producto: las instalaciones que reporten otra se marcan como desactualizadas. */
+function VersionProducto({ producto, alGuardar }: { producto: any; alGuardar: () => Promise<unknown> }) {
+  const [v, setV] = useState(producto.version_actual || '');
+  useEffect(() => { setV(producto.version_actual || ''); }, [producto.version_actual]);
+  return (
+    <span className="fila" style={{ gap: 4 }}>
+      <input value={v} onChange={(e) => setV(e.target.value)} placeholder="Versión actual" style={{ width: 120 }} aria-label={`Versión actual de ${producto.nombre}`} />
+      {v !== (producto.version_actual || '') && <BotonAccion texto="Guardar" className="btn chico" exito="Versión guardada" onClick={async () => { await api.patch(`/productos/${producto.id}`, { version_actual: v || null }); await alGuardar(); }} />}
+    </span>
   );
 }

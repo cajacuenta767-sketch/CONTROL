@@ -13,8 +13,8 @@ Cada producto del catálogo necesita tres cosas para quedar licenciado:
 
 | Paso | Llamada | Respuesta |
 |---|---|---|
-| Activar | `POST /api/v1/licencias/activar` `{ clave, producto, huella, dominio?, nombre_equipo?, version? }` | `{ ok, token, licencia: { estado, vence_en, soporte_hasta, etiqueta } }` |
-| Latido (cada 24 h) | `POST /api/v1/licencias/latido` `{ clave, huella, version? }` | Token renovado |
+| Activar | `POST /api/v1/licencias/activar` `{ clave, producto, huella, dominio?, nombre_equipo?, version? }` | `{ ok, token, licencia: { estado, vence_en, soporte_hasta, etiqueta, version_actual, desactualizada } }` |
+| Latido (cada 24 h) | `POST /api/v1/licencias/latido` `{ clave, huella, version? }` | Token renovado + mismos datos de `licencia` |
 | Clave pública | `GET /api/v1/licencias/clave-publica` | `{ algoritmo: 'Ed25519', clave_publica }` |
 
 El **token** es `base64url(payload).base64url(firma)`. El payload incluye `clave`,
@@ -43,6 +43,30 @@ Los SDK de ejemplo están en `sdk/`:
 
 Cada uno expone `activar()`, `verificar()` y `latido()`, y un middleware o dependencia que
 bloquea las rutas cuando la licencia no es válida.
+
+## Versión del producto y aviso de actualización
+
+Envía siempre `version` en activar y latido. En CONTROL → Catálogo el superadmin fija la
+**versión actual** de cada producto; cada respuesta incluye `licencia.version_actual` y
+`licencia.desactualizada`. El panel muestra cuántas instalaciones van atrasadas (alerta del
+panel, contador en Catálogo y etiqueta por equipo en cada licencia) y la pantalla estándar
+"Licencia" del producto avisa al cliente.
+
+## Código de emergencia (72 h)
+
+Cuando el producto no puede validar (CONTROL caído, cliente sin internet, pago en trámite),
+un vendedor o admin genera desde la licencia un **código de emergencia**: un token firmado
+con la misma clave privada, con `emergencia: true`, `estado: 'activa'` y `expira_en` a 72 h,
+válido solo para la huella indicada. El producto lo verifica con la clave pública y lo guarda
+como token normal (`aplicarCodigoEmergencia()` / `aplicar_codigo_emergencia()`), sin red.
+Queda registrado en `codigos_emergencia` y en la auditoría de la licencia.
+
+## Pantalla estándar "Licencia"
+
+Todos los productos muestran la misma pantalla (estado, vencimiento, equipo, versión,
+"Reactivar" y campo para el código de emergencia). En Node basta
+`app.use('/licencia', licencia.pantallaExpress({ nombre: 'DENTAL-PRO' }))`; para Laravel,
+FastAPI, Electron o PWA está la plantilla y la guía en `sdk/pantalla-licencia/`.
 
 ## Recomendación para productos nuevos
 

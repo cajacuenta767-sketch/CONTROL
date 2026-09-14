@@ -37,52 +37,66 @@ por impacto para el negocio.
 | Sin favicon, título fijo en todas las pantallas. | Favicon propio y título por pantalla. |
 | Iconos con emojis (se ven distintos en cada sistema). | Iconos SVG propios, navegación agrupada en secciones. |
 
-## Pendiente, por prioridad
+## Segunda ronda: todo lo pendiente, implementado
 
-### 1. Seguridad y sesiones
+Lo que en la primera revisión quedó como pendiente se construyó en cinco fases. Cada punto
+está cubierto por tests del backend (`npm test`, 53 pruebas) o por la suite de interfaz
+(`npm run e2e`, 14 flujos en Chromium).
 
-- **Contraseña olvidada.** Hoy depende del superadmin. Falta un flujo por correo con token de un solo uso.
-- **Doble factor** para superadmin y admins (TOTP). Son las cuentas que mueven dinero.
-- **Sesión con renovación.** El JWT dura 12 h y vive en `localStorage`. Mejor: token corto más cookie de refresco `httpOnly`, y cierre de sesión que invalide en servidor.
-- **Bloqueo por intentos** por cuenta, no solo por IP, y aviso al superadmin.
-- **Política de contraseñas** mínima (longitud 10, sin las 10 000 más comunes) y cambio obligatorio en el primer acceso.
-- **Cabeceras CSP** activas en Helmet una vez que el panel deje de usar estilos en línea.
+### 1. Seguridad y sesiones · hecho
 
-### 2. Negocio
+| Mejora | Cómo quedó |
+|---|---|
+| Contraseña olvidada | `/recuperar` envía un enlace por correo con token de un solo uso (1 h); la clave nueva se valida antes de consumir el token. |
+| Doble factor | TOTP (Google Authenticator, Authy) activable por cada usuario en "Mi seguridad"; el superadmin puede quitarlo desde Equipo si se pierde el teléfono. |
+| Sesión con renovación | Token de acceso de 1 h + cookie `httpOnly` de refresco rotativa; cierre de sesión que revoca en servidor; lista de sesiones abiertas con revocación. |
+| Bloqueo por intentos | 5 intentos fallidos bloquean la cuenta 15 min; desbloqueo manual desde Equipo. |
+| Política de contraseñas | Mínimo 10 caracteres con letras y números, sin las más comunes ni el correo o nombre; cambio obligatorio en el primer acceso. |
+| CSP | Helmet con CSP activa; el panel no usa estilos ni scripts en línea externos. |
 
-- **Pasarelas de pago** (Stripe, PayPal, Culqi) con webhook que confirma el cobro solo; hoy todo cobro se confirma a mano.
-- **Recibos en PDF** para el cliente (venta y pago) y para el vendedor (liquidación), con el nombre y logo de la agencia.
-- **Comprobante como archivo.** Hoy es un enlace; falta subir foto o PDF y guardarlo.
-- **Multimoneda real.** La venta guarda moneda y tipo de cambio, pero el panel muestra todo en USD. Falta mostrar el importe cobrado en la moneda del cliente y el equivalente en moneda base.
-- **Metas y ranking** por vendedor con comisión escalonada al superar la meta.
-- **Enlace de venta con código** de vendedor para compras que entren solas desde DevMarket.
-- **Portal del cliente**: ver sus licencias, descargar recibos, pagar renovación, abrir ticket de soporte.
-- **Revendedores externos** con stock de licencias prepagado y marca blanca.
-- **Renovación automática** de planes mensuales cuando haya pasarela.
+### 2. Negocio · hecho
 
-### 3. Operación
+| Mejora | Cómo quedó |
+|---|---|
+| Pasarelas de pago | Stripe Checkout y PayPal Orders con webhook/captura que confirman el cobro solos; pasarela "demo" para probar el flujo. |
+| Recibos PDF | Recibo de venta, de pago, de liquidación y cierre de caja, con el nombre de la agencia. |
+| Comprobante como archivo | Subida de foto o PDF por pago, descargable desde la venta. |
+| Multimoneda | Tipos de cambio en Ajustes; cada venta guarda moneda y cambio; caja y comisiones en moneda base con detalle por moneda. |
+| Metas y bono | Meta mensual por vendedor con bono adicional al cumplirla; barra de avance en el panel. |
+| Enlace de venta | `/comprar?ref=CODIGO` atribuye la compra al vendedor; pedidos externos con API key. |
+| Portal del cliente | `/portal`: acceso con clave + correo o teléfono, licencias, recibos, renovación en línea y tickets. |
+| Revendedores | Rol con cupo prepagado, descuento mayorista y marca propia; sin comisión. |
+| Renovación automática | Tarea programada que crea la venta de renovación y envía el enlace de pago N días antes del vencimiento. |
 
-- **Tareas programadas** en servidor: barrido de estados (hoy se ejecuta al consultar), aviso de vencimiento a 30, 7 y 1 día por WhatsApp o correo, recordatorio de cierre de caja a las 8 pm.
-- **Correo transaccional** (claves, recibos, avisos) con un proveedor SMTP.
-- **Respaldo automático** de la base con rotación, y un comando de restauración probado.
-- **PostgreSQL** cuando haya más de un servidor o más de unas decenas de miles de licencias; el código usa SQL estándar y la migración es directa.
-- **Registro de errores** centralizado (p. ej. Sentry) y métricas de latidos por producto.
-- **Despliegue** documentado con Caddy o Nginx, HTTPS y variable `ORIGENES` correcta.
+### 3. Operación · hecho
 
-### 4. Panel
+| Mejora | Cómo quedó |
+|---|---|
+| Tareas programadas | Barrido de estados, avisos de vencimiento (30/7/1 días) por correo y al vendedor, recordatorio de cierre de caja, renovación automática, respaldo diario y limpieza; visibles en Ajustes → Sistema. |
+| Correo transaccional | SMTP configurable con prueba desde Ajustes; todo correo queda registrado aunque no haya SMTP. |
+| Respaldo automático | `VACUUM INTO` diario con rotación, descarga desde el panel y `scripts/restaurar.js`. |
+| Registro de errores | Los errores 500 se guardan en la tabla `errores` y se ven en Ajustes. |
+| Despliegue | Dockerfile, docker-compose con Caddy y guía en `docs/04-despliegue.md`. |
+| PostgreSQL | Sigue siendo opcional: SQLite con `VACUUM INTO` cubre el volumen previsto; el SQL es estándar. |
 
-- **Búsqueda global** (Ctrl+K) sobre clientes, ventas y claves.
-- **Paginación en servidor** cuando las listas superen los 500 registros que hoy se cargan de golpe.
-- **Modo oscuro** y ajuste de densidad para quien pasa el día en el panel.
-- **Gráficos** de ventas por producto y por vendedor con comparación mes a mes.
-- **Historial en cliente**: línea de tiempo de ventas, pagos, activaciones y tickets.
-- **Plantillas de WhatsApp editables** desde Ajustes, en lugar de textos fijos.
-- **Accesibilidad**: revisar contraste en chips y navegación por teclado en modales.
-- **Pruebas de interfaz** automáticas con Playwright sobre el flujo venta → cobro → activación.
+### 4. Panel · hecho
 
-### 5. Integración con los productos
+| Mejora | Cómo quedó |
+|---|---|
+| Búsqueda global | Ctrl+K / ⌘K: clientes, ventas, licencias y accesos rápidos, con teclado. |
+| Paginación en servidor | Ventas y licencias piden páginas de 50; los conteos por estado vienen del servidor. |
+| Modo oscuro | Conmutador en el lateral, persistente por navegador; respeta la preferencia del sistema. |
+| Gráficos | Página Reportes: cobros por producto y por vendedor mes a mes, licencias activadas, exportable a CSV. |
+| Historial en cliente | Línea de tiempo con ventas, pagos, activaciones, tickets y cambios de licencia. |
+| Plantillas de WhatsApp | Editables en Ajustes (claves, recordatorio de cobro, renovación). |
+| Accesibilidad | Foco atrapado y restaurado en modales, filas e indicadores operables por teclado, enlace "saltar al contenido", roles ARIA. |
+| Pruebas de interfaz | `frontend/e2e/ejecutar.mjs` levanta un servidor sembrado y recorre login, búsqueda, paginación, reportes, tema, modales, tickets, seguridad, código de emergencia y el portal del cliente. |
 
-- Publicar el SDK de Node como paquete privado y añadirlo a la plantilla base de SECRETARIA-IA.
-- Pantalla estándar "Licencia" en cada producto (estado, vence, equipo, botón "reactivar").
-- Reporte de versión en el latido y aviso en CONTROL cuando una instalación esté desactualizada.
-- Modo de emergencia: un código de un solo uso firmado por CONTROL para desbloquear 72 h sin red.
+### 5. Integración con los productos · hecho
+
+| Mejora | Cómo quedó |
+|---|---|
+| Pantalla estándar "Licencia" | `pantallaExpress()` en el SDK de Node y plantilla + guía en `sdk/pantalla-licencia/` para Laravel, FastAPI, Electron y PWA. |
+| Versión y aviso de desactualización | Versión vigente por producto en Catálogo; `desactualizada` en cada respuesta; alerta en el panel y etiqueta por equipo. |
+| Código de emergencia | Token firmado de 72 h por equipo, emitido desde la licencia, auditado; los tres SDK lo aceptan sin red. |
+| SDK como paquete | `sdk/node` tiene `package.json` propio para publicarlo en un registro privado o instalarlo por ruta. |

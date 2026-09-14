@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Licencia</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #f4f6f9; color: #1f2937; margin: 0; display: grid; place-items: center; min-height: 100vh; padding: 16px; box-sizing: border-box; }
+    .c { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 24px 28px; width: min(560px, 100%); }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    .e { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; color: #fff; background: #15803d; }
+    .e[data-tono="mal"] { background: #b91c1c; } .e[data-tono="aviso"] { background: #b45309; }
+    dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 16px 0; } dt { color: #6b7280; } dd { margin: 0; }
+    code { background: #f3f4f6; padding: 2px 6px; border-radius: 6px; }
+    form { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; } input { flex: 1; min-width: 200px; padding: 8px 10px; border: 1px solid #e5e7eb; border-radius: 8px; }
+    button { background: #1d4ed8; color: #fff; border: 0; border-radius: 8px; padding: 8px 14px; cursor: pointer; } .s { background: #fff; color: #1f2937; border: 1px solid #e5e7eb; }
+    .a { background: #fef3c7; color: #b45309; padding: 10px 12px; border-radius: 8px; margin-top: 12px; } [hidden] { display: none !important; }
+    .p { color: #6b7280; font-size: 12px; margin-top: 18px; }
+  </style>
+</head>
+<body>
+  <div class="c">
+    <h1><span data-campo="nombre">Producto</span> · Licencia</h1>
+    <span class="e" data-campo="titulo" data-tono="ok">Licencia activa</span>
+    <div class="a" data-campo="aviso" hidden></div>
+    <div class="a" data-campo="desactualizada" hidden>Hay una versión nueva. Pide la actualización a tu asesor.</div>
+    <dl>
+      <dt>Clave</dt><dd><code data-campo="clave"></code></dd>
+      <dt>Plan</dt><dd data-campo="plan"></dd>
+      <dt>Vence</dt><dd data-campo="vence_en"></dd>
+      <dt>Soporte hasta</dt><dd data-campo="soporte_hasta"></dd>
+      <dt>Funciona sin internet hasta</dt><dd data-campo="sin_conexion_hasta"></dd>
+      <dt>Equipo</dt><dd><code data-campo="huella"></code></dd>
+      <dt>Versión</dt><dd data-campo="version"></dd>
+    </dl>
+    <form data-accion="reactivar"><button type="submit">Reactivar / verificar ahora</button></form>
+    <form data-accion="emergencia"><input name="codigo" placeholder="Pega aquí el código de emergencia (72 h)" required /><button class="s" type="submit">Aplicar</button></form>
+    <p class="p">Si el sistema está bloqueado, escribe a tu asesor con la clave y el identificador del equipo.</p>
+  </div>
+  <script>
+    // Rellena la pantalla con el resumen del SDK: pintar(licencia.resumen(), { nombre: 'DENTAL-PRO' })
+    window.pintarLicencia = function (r, opciones = {}) {
+      const f = (d) => (d ? new Date(d).toLocaleDateString('es', { dateStyle: 'medium' }) : '—');
+      const $ = (c) => document.querySelector(`[data-campo="${c}"]`);
+      $('nombre').textContent = opciones.nombre || r.producto;
+      const t = $('titulo');
+      t.textContent = r.valido ? (r.estado === 'mora' ? 'Licencia vencida: renueva pronto' : 'Licencia activa') : 'Licencia no válida';
+      t.dataset.tono = r.valido ? (r.estado === 'mora' ? 'aviso' : 'ok') : 'mal';
+      $('aviso').hidden = !(opciones.aviso || (!r.valido && r.motivo)); $('aviso').textContent = opciones.aviso || r.motivo || '';
+      $('desactualizada').hidden = !r.desactualizada;
+      $('clave').textContent = r.clave; $('plan').textContent = [r.plan, r.etiqueta].filter(Boolean).join(' · ') || '—';
+      $('vence_en').textContent = r.vence_en ? f(r.vence_en) : r.valido ? 'Nunca' : '—';
+      $('soporte_hasta').textContent = f(r.soporte_hasta);
+      $('sin_conexion_hasta').textContent = f(r.sin_conexion_hasta) + (r.emergencia ? ' (código de emergencia)' : '');
+      $('huella').textContent = r.huella; $('version').textContent = r.version || '—';
+    };
+  </script>
+</body>
+</html>

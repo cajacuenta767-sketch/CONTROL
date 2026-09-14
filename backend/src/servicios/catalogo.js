@@ -8,7 +8,8 @@ export function listarProductos({ incluirInactivos = false } = {}) {
     .prepare(
       `SELECT p.*,
         (SELECT COUNT(*) FROM licencias l WHERE l.producto_id = p.id AND l.estado IN ('activa','mora')) AS licencias_activas,
-        (SELECT COUNT(*) FROM licencias l WHERE l.producto_id = p.id) AS licencias_total
+        (SELECT COUNT(*) FROM licencias l WHERE l.producto_id = p.id) AS licencias_total,
+        (SELECT COUNT(*) FROM activaciones a JOIN licencias l ON l.id = a.licencia_id WHERE l.producto_id = p.id AND a.activa = 1 AND p.version_actual IS NOT NULL AND a.version IS NOT NULL AND a.version != p.version_actual) AS instalaciones_desactualizadas
        FROM productos p ${incluirInactivos ? '' : 'WHERE p.activo = 1'} ORDER BY p.nombre`
     )
     .all();
@@ -27,8 +28,8 @@ export function crearProducto(datos, actor) {
   const db = obtenerDb();
   if (db.prepare('SELECT 1 FROM productos WHERE codigo = ?').get(datos.codigo)) throw new ErrorHttp(409, 'Ese código ya existe');
   const r = db
-    .prepare('INSERT INTO productos (codigo, nombre, descripcion) VALUES (?, ?, ?)')
-    .run(datos.codigo, datos.nombre, datos.descripcion ?? null);
+    .prepare('INSERT INTO productos (codigo, nombre, descripcion, version_actual) VALUES (?, ?, ?, ?)')
+    .run(datos.codigo, datos.nombre, datos.descripcion ?? null, datos.version_actual ?? null);
   const id = Number(r.lastInsertRowid);
   auditar({ usuarioId: actor.id, accion: 'producto.crear', entidad: 'producto', entidadId: id, detalle: datos });
   return obtenerProducto(id);
@@ -38,7 +39,7 @@ export function actualizarProducto(id, datos, actor) {
   obtenerProducto(id);
   const campos = [];
   const valores = [];
-  for (const k of ['nombre', 'descripcion', 'activo']) {
+  for (const k of ['nombre', 'descripcion', 'activo', 'version_actual']) {
     if (datos[k] !== undefined) { campos.push(`${k} = ?`); valores.push(typeof datos[k] === 'boolean' ? Number(datos[k]) : datos[k]); }
   }
   if (campos.length) obtenerDb().prepare(`UPDATE productos SET ${campos.join(', ')} WHERE id = ?`).run(...valores, id);

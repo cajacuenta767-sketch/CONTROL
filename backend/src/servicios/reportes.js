@@ -89,6 +89,9 @@ export function resumen(usuario) {
           AND NOT EXISTS (SELECT 1 FROM cierres_caja c WHERE c.vendedor_id = u.id AND c.fecha = ?)`)
         .all(z, hoy, hoy).map((f) => f.nombre),
       sobre_tope: salida.equipo.filter((u) => u.rol !== 'superadmin' && u.emitidas_hoy > u.tope_emisiones_dia).map((u) => u.nombre),
+      instalaciones_desactualizadas: db
+        .prepare("SELECT COUNT(*) AS n FROM activaciones a JOIN licencias l ON l.id = a.licencia_id JOIN productos p ON p.id = l.producto_id WHERE a.activa = 1 AND l.estado IN ('activa','mora') AND p.version_actual IS NOT NULL AND a.version IS NOT NULL AND a.version != p.version_actual")
+        .get().n,
       instalaciones_sin_latido_7d: db
         .prepare("SELECT COUNT(*) AS n FROM activaciones a JOIN licencias l ON l.id = a.licencia_id WHERE a.activa = 1 AND l.estado IN ('activa','mora') AND a.ultimo_latido < datetime('now','-7 days')")
         .get().n,

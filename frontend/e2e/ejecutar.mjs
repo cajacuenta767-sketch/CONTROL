@@ -113,6 +113,20 @@ try {
     await pagina.keyboard.press('Escape');
     await pagina.waitForSelector('[role=dialog]', { state: 'detached' });
   });
+  await paso('código de emergencia desde la licencia', async () => {
+    await pagina.goto(`${base}/licencias?estado=activa`);
+    await pagina.click('table[aria-label="Licencias"] tbody tr');
+    await pagina.waitForSelector('button:has-text("Código de emergencia")');
+    await pagina.click('button:has-text("Código de emergencia")');
+    await pagina.fill('[role=dialog] input[placeholder^="…o escribe"]', 'pc-caja-principal');
+    await pagina.fill('[role=dialog] input[required]', 'Cliente sin internet');
+    await pagina.click('[role=dialog] button[type=submit]');
+    await pagina.waitForSelector('[role=dialog] textarea[readonly]');
+    const codigo = await pagina.inputValue('[role=dialog] textarea[readonly]');
+    if (!codigo.includes('.')) throw new Error('código sin firma');
+    await pagina.keyboard.press('Escape');
+    await pagina.waitForSelector('table[aria-label="Códigos de emergencia"] tbody tr');
+  });
   await paso('página de tickets del panel', async () => {
     await pagina.goto(`${base}/tickets`);
     await pagina.waitForSelector('table[aria-label="Tickets"]');

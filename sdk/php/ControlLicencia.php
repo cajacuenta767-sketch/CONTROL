@@ -79,8 +79,38 @@ class ControlLicencia
 
     public function estado(): array { return $this->estado; }
 
+    /** Código de 72 h emitido desde CONTROL para este equipo; se verifica sin red. */
+    public function aplicarCodigoEmergencia(string $codigo): array
+    {
+        $codigo = trim($codigo);
+        $p = $this->verificar($codigo);
+        if (!$p || empty($p['emergencia'])) {
+            return ['ok' => false, 'motivo' => $p ? 'Ese código no es de emergencia' : 'Código inválido, vencido o de otro equipo'];
+        }
+        @mkdir(dirname($this->archivo), 0775, true);
+        @file_put_contents($this->archivo, json_encode(['token' => $codigo, 'guardado_en' => date('c')]));
+        $this->estado = ['valido' => true, 'payload' => $p, 'motivo' => null];
+        return ['ok' => true, 'expira_en' => $p['expira_en']];
+    }
+
+    /** Datos para la pantalla estándar "Licencia" (ver sdk/pantalla-licencia/). */
+    public function resumen(): array
+    {
+        $p = $this->estado['payload'] ?? [];
+        $vigente = ($this->estado['valido'] ?? false) || (!empty($p['expira_en']) && strtotime($p['expira_en']) > time());
+        return [
+            'valido' => $vigente, 'estado' => $p['estado'] ?? $this->estado['codigo'] ?? 'desconocido', 'motivo' => $this->estado['motivo'] ?? null,
+            'clave' => $this->clave, 'producto' => $this->producto, 'plan' => $p['plan'] ?? null, 'etiqueta' => $p['etiqueta'] ?? null, 'huella' => $this->huella,
+            'vence_en' => $p['vence_en'] ?? null, 'soporte_hasta' => $p['soporte_hasta'] ?? null, 'sin_conexion_hasta' => $p['expira_en'] ?? null,
+            'emergencia' => !empty($p['emergencia']), 'version' => $this->version, 'version_actual' => $this->info['version_actual'] ?? null, 'desactualizada' => !empty($this->info['desactualizada']),
+        ];
+    }
+
+    private array $info = [];
+
     private function procesar(array $r): array
     {
+        if (!empty($r['licencia']) && is_array($r['licencia'])) $this->info = $r['licencia'];
         if (($r['ok'] ?? false) && !empty($r['token'])) {
             $p = $this->verificar($r['token']);
             if ($p) {

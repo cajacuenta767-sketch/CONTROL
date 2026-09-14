@@ -75,7 +75,33 @@ class ControlLicencia:
             datos = {}
         return {"ok": r.is_success, "status": r.status_code, **datos}
 
+    def aplicar_codigo_emergencia(self, codigo: str) -> dict:
+        """Código de 72 h emitido desde CONTROL para este equipo; se verifica sin red."""
+        p = self.verificar((codigo or "").strip())
+        if not p or not p.get("emergencia"):
+            return {"ok": False, "motivo": "Ese código no es de emergencia" if p else "Código inválido, vencido o de otro equipo"}
+        try:
+            self.archivo.parent.mkdir(parents=True, exist_ok=True)
+            self.archivo.write_text(json.dumps({"token": codigo.strip(), "guardado_en": datetime.now(timezone.utc).isoformat()}))
+        except OSError:
+            pass
+        self.estado = {"valido": True, "payload": p, "motivo": None}
+        return {"ok": True, "expira_en": p["expira_en"]}
+
+    def resumen(self) -> dict:
+        """Datos para la pantalla estándar "Licencia" (ver sdk/pantalla-licencia/)."""
+        p = self.estado.get("payload") or {}
+        info = getattr(self, "info", None) or {}
+        return {
+            "valido": self.vigente(), "estado": p.get("estado") or self.estado.get("codigo") or "desconocido", "motivo": self.estado.get("motivo"),
+            "clave": self.clave, "producto": self.producto, "plan": p.get("plan"), "etiqueta": p.get("etiqueta"), "huella": self.huella,
+            "vence_en": p.get("vence_en"), "soporte_hasta": p.get("soporte_hasta"), "sin_conexion_hasta": p.get("expira_en"),
+            "emergencia": bool(p.get("emergencia")), "version": self.version, "version_actual": info.get("version_actual"), "desactualizada": bool(info.get("desactualizada")),
+        }
+
     def _procesar(self, r: dict) -> dict:
+        if r.get("licencia"):
+            self.info = r["licencia"]
         if r.get("ok") and r.get("token"):
             p = self.verificar(r["token"])
             if p:

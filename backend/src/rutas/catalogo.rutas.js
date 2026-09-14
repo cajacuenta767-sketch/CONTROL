@@ -13,13 +13,13 @@ rutasProductos.get('/:id', asincrono((req, res) => res.json(obtenerProducto(Numb
 rutasProductos.post(
   '/',
   requerirRol('superadmin'),
-  validar(z.object({ codigo: z.string().regex(/^[a-z0-9-]+$/, 'solo minúsculas, números y guiones'), nombre: z.string().min(2), descripcion: z.string().optional() })),
+  validar(z.object({ codigo: z.string().regex(/^[a-z0-9-]+$/, 'solo minúsculas, números y guiones'), nombre: z.string().min(2), descripcion: z.string().optional(), version_actual: z.string().max(40).nullable().optional() })),
   asincrono((req, res) => res.status(201).json(crearProducto(req.datos, req.usuario)))
 );
 rutasProductos.patch(
   '/:id',
   requerirRol('superadmin'),
-  validar(z.object({ nombre: z.string().min(2).optional(), descripcion: z.string().nullable().optional(), activo: z.boolean().optional() })),
+  validar(z.object({ nombre: z.string().min(2).optional(), descripcion: z.string().nullable().optional(), activo: z.boolean().optional(), version_actual: z.string().max(40).nullable().optional() })),
   asincrono((req, res) => res.json(actualizarProducto(Number(req.params.id), req.datos, req.usuario)))
 );
 

@@ -2,10 +2,10 @@ import { obtenerDb, transaccion, ajusteNumero, ahoraSql } from '../db.js';
 import { ErrorHttp, noEncontrado, prohibido } from '../middleware/errores.js';
 import { esGestor } from '../middleware/auth.js';
 import { auditar } from './auditoria.js';
-import { tokenParaLicencia } from '../firmas.js';
+import { tokenParaLicencia, firmarToken } from '../firmas.js';
 
 const BASE = `SELECT l.*, c.nombre AS cliente_nombre, c.empresa AS cliente_empresa, c.email AS cliente_email,
-  pr.codigo AS producto_codigo, pr.nombre AS producto_nombre, pl.nombre AS plan_nombre, pl.tipo AS plan_tipo,
+  pr.codigo AS producto_codigo, pr.nombre AS producto_nombre, pr.version_actual AS producto_version_actual, pl.nombre AS plan_nombre, pl.tipo AS plan_tipo,
   u.nombre AS vendedor_nombre, e.nombre AS emitida_por_nombre, v.numero AS venta_numero,
   (SELECT COUNT(*) FROM activaciones a WHERE a.licencia_id = l.id AND a.activa = 1) AS activaciones_usadas,
   (SELECT MAX(a.ultimo_latido) FROM activaciones a WHERE a.licencia_id = l.id AND a.activa = 1) AS ultimo_latido
@@ -70,7 +70,9 @@ export function obtenerLicencia(id, usuario) {
   const l = db.prepare(`${BASE} WHERE l.id = ?`).get(id);
   if (!l) throw noEncontrado('Licencia no encontrada');
   if (usuario && !esGestor(usuario) && l.vendedor_id !== usuario.id) throw prohibido('Esta licencia es de otro vendedor');
-  l.activaciones = db.prepare('SELECT * FROM activaciones WHERE licencia_id = ? ORDER BY id DESC').all(id);
+  l.activaciones = db.prepare('SELECT * FROM activaciones WHERE licencia_id = ? ORDER BY id DESC').all(id)
+    .map((a) => ({ ...a, desactualizada: Boolean(l.producto_version_actual && a.version && a.version !== l.producto_version_actual) }));
+  l.codigos_emergencia = db.prepare('SELECT ce.id, ce.huella, ce.expira_en, ce.motivo, ce.creado_en, u.nombre AS creado_por_nombre FROM codigos_emergencia ce LEFT JOIN usuarios u ON u.id = ce.creado_por WHERE ce.licencia_id = ? ORDER BY ce.id DESC LIMIT 20').all(id);
   l.historial = db
     .prepare(
       `SELECT a.*, u.nombre AS usuario_nombre FROM auditoria a LEFT JOIN usuarios u ON u.id = a.usuario_id
@@ -128,8 +130,34 @@ export function transferirLicencia(id, clienteId, motivo, actor) {
 
 const BLOQUEADAS = { pendiente_pago: 'Pago pendiente de confirmación', suspendida: 'Licencia suspendida', vencida: 'Licencia vencida', revocada: 'Licencia revocada' };
 
-function respuestaLicencia(l) {
-  return { estado: l.estado, etiqueta: l.etiqueta, vence_en: l.vence_en, soporte_hasta: l.soporte_hasta, producto: l.producto_codigo, plan: l.plan_tipo, motivo: l.motivo_estado };
+function respuestaLicencia(l, version = null) {
+  const actual = l.producto_version_actual || null;
+  return {
+    estado: l.estado, etiqueta: l.etiqueta, vence_en: l.vence_en, soporte_hasta: l.soporte_hasta, producto: l.producto_codigo, plan: l.plan_tipo, motivo: l.motivo_estado,
+    version_actual: actual, desactualizada: Boolean(actual && version && version !== actual),
+  };
+}
+
+const HORAS_EMERGENCIA = 72;
+
+/**
+ * Código de emergencia: token firmado de 72 h para un equipo concreto, que el producto
+ * acepta sin conexión (p. ej. CONTROL caído o cliente sin internet en una fecha crítica).
+ */
+export function crearCodigoEmergencia(id, { huella, motivo }, actor) {
+  const l = obtenerLicencia(id, actor);
+  if (l.estado === 'revocada') throw new ErrorHttp(422, 'La licencia está revocada');
+  const h = String(huella || '').trim();
+  if (!h) throw new ErrorHttp(422, 'Indica la huella del equipo');
+  const ahora = new Date();
+  const expira = new Date(ahora.getTime() + HORAS_EMERGENCIA * 3600000);
+  const codigo = firmarToken({
+    clave: l.clave, producto: l.producto_codigo, plan: l.plan_tipo, huella: h, estado: 'activa', etiqueta: l.etiqueta,
+    vence_en: l.vence_en, soporte_hasta: l.soporte_hasta, emergencia: true, emitido_en: ahora.toISOString(), expira_en: expira.toISOString(),
+  });
+  obtenerDb().prepare('INSERT INTO codigos_emergencia (licencia_id, huella, expira_en, creado_por, motivo) VALUES (?, ?, ?, ?, ?)').run(l.id, h, expira.toISOString(), actor.id, motivo ?? null);
+  auditar({ usuarioId: actor.id, accion: 'licencia.codigo_emergencia', entidad: 'licencia', entidadId: l.id, detalle: { huella: h, motivo, expira_en: expira.toISOString() } });
+  return { codigo, expira_en: expira.toISOString(), horas: HORAS_EMERGENCIA, huella: h };
 }
 
 /**
@@ -173,7 +201,7 @@ function activarEnTransaccion({ clave, producto, huella, dominio, nombre_equipo,
       act = { id: Number(r.lastInsertRowid), huella };
       auditar({ accion: 'activacion.nueva', entidad: 'licencia', entidadId: l.id, detalle: { huella, dominio, nombre_equipo, version }, ip });
     }
-    return { ok: true, token: tokenParaLicencia(l, act), licencia: respuestaLicencia(l) };
+    return { ok: true, token: tokenParaLicencia(l, act), licencia: respuestaLicencia(l, version) };
   });
 }
 
@@ -186,6 +214,6 @@ export function latido({ clave, huella, version, ip }) {
   const act = db.prepare('SELECT * FROM activaciones WHERE licencia_id = ? AND huella = ? AND activa = 1').get(l.id, huella);
   if (!act) throw new ErrorHttp(403, 'Este equipo no está activado', { ok: false, codigo: 'no_activada', licencia: respuestaLicencia(l) });
   db.prepare('UPDATE activaciones SET ultimo_latido = ?, version = COALESCE(?, version), ip = COALESCE(?, ip) WHERE id = ?').run(ahoraSql(), version ?? null, ip ?? null, act.id);
-  if (BLOQUEADAS[l.estado]) throw new ErrorHttp(403, BLOQUEADAS[l.estado], { ok: false, codigo: l.estado, licencia: respuestaLicencia(l) });
-  return { ok: true, token: tokenParaLicencia(l, act), licencia: respuestaLicencia(l) };
+  if (BLOQUEADAS[l.estado]) throw new ErrorHttp(403, BLOQUEADAS[l.estado], { ok: false, codigo: l.estado, licencia: respuestaLicencia(l, version) });
+  return { ok: true, token: tokenParaLicencia(l, act), licencia: respuestaLicencia(l, version) };
 }

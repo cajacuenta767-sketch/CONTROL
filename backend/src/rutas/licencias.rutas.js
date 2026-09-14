@@ -7,7 +7,7 @@ import { asincrono } from '../middleware/errores.js';
 import { obtenerClaves } from '../firmas.js';
 import {
   listarLicencias, obtenerLicencia, actualizarEtiqueta, cambiarEstado, resetearActivaciones,
-  ajustarMaxActivaciones, transferirLicencia, activar, latido,
+  ajustarMaxActivaciones, transferirLicencia, activar, latido, crearCodigoEmergencia,
 } from '../servicios/licencias.js';
 
 /* ---------- Rutas públicas: las llaman los productos instalados ---------- */
@@ -64,4 +64,9 @@ rutasLicencias.post(
   soloSuper,
   validar(conMotivo.extend({ cliente_id: z.number().int() })),
   asincrono((req, res) => res.json(transferirLicencia(Number(req.params.id), req.datos.cliente_id, req.datos.motivo, req.usuario)))
+);
+rutasLicencias.post(
+  '/:id/emergencia',
+  validar(z.object({ huella: z.string().min(4).max(128), motivo: z.string().min(3).max(300) })),
+  asincrono((req, res) => res.status(201).json(crearCodigoEmergencia(Number(req.params.id), req.datos, req.usuario)))
 );

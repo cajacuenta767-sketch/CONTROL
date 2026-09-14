@@ -29,7 +29,7 @@ export function Panel() {
   const totalLic = Object.values(r.licencias.por_estado).reduce((s, n) => s + n, 0);
   const activas = (r.licencias.por_estado.activa || 0) + (r.licencias.por_estado.mora || 0);
   const alertas = r.alertas;
-  const hayAlertas = alertas && (alertas.activaciones_rechazadas_24h || alertas.cierres_por_aprobar || alertas.pagos_por_confirmar || alertas.sin_cierre_hoy?.length || alertas.sobre_tope?.length || alertas.instalaciones_sin_latido_7d);
+  const hayAlertas = alertas && (alertas.activaciones_rechazadas_24h || alertas.cierres_por_aprobar || alertas.pagos_por_confirmar || alertas.sin_cierre_hoy?.length || alertas.sobre_tope?.length || alertas.instalaciones_sin_latido_7d || alertas.instalaciones_desactualizadas);
   const serie = r.ventas_por_dia || [];
   const maxDia = Math.max(1, ...serie.map((d) => d.total));
   const hora = new Date().getHours();
@@ -55,6 +55,7 @@ export function Panel() {
             alertas.sin_cierre_hoy?.length ? <span key="s">sin cerrar caja hoy: {alertas.sin_cierre_hoy.join(', ')}</span> : null,
             alertas.sobre_tope?.length ? <span key="t">superaron su tope de emisiones: {alertas.sobre_tope.join(', ')}</span> : null,
             alertas.instalaciones_sin_latido_7d ? <span key="l">{alertas.instalaciones_sin_latido_7d} instalación(es) sin latido en 7 días</span> : null,
+            alertas.instalaciones_desactualizadas ? <Link key="d" to="/catalogo">{alertas.instalaciones_desactualizadas} instalación(es) desactualizada(s)</Link> : null,
           ].filter(Boolean).map((x, i) => <span key={i}>{i > 0 && ' · '}{x}</span>)}
         </Aviso>
       )}
