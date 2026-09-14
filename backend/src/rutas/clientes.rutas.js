@@ -5,6 +5,7 @@ import { requerirAuth } from '../middleware/auth.js';
 import { asincrono } from '../middleware/errores.js';
 import { listarClientes, obtenerCliente, crearCliente, actualizarCliente, historialCliente } from '../servicios/clientes.js';
 import { listarLicencias } from '../servicios/licencias.js';
+import { saludClientes, resumenSalud, saludCliente } from '../servicios/retencion.js';
 import { listarVentas } from '../servicios/ventas.js';
 
 export const rutasClientes = Router();
@@ -22,6 +23,9 @@ const esquema = z.object({
 });
 
 rutasClientes.get('/', asincrono((req, res) => res.json(listarClientes(req.usuario, { q: req.query.q }))));
+rutasClientes.get('/salud', asincrono((req, res) => res.json(saludClientes(req.usuario, { solo_riesgo: req.query.riesgo === '1' }))));
+rutasClientes.get('/salud/resumen', asincrono((req, res) => res.json(resumenSalud(req.usuario))));
+rutasClientes.get('/:id/salud', asincrono((req, res) => res.json(saludCliente(Number(req.params.id), req.usuario))));
 rutasClientes.get('/:id', asincrono((req, res) => {
   const id = Number(req.params.id);
   const cliente = obtenerCliente(id, req.usuario);

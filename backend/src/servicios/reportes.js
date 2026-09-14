@@ -1,6 +1,7 @@
 import { obtenerDb, hoyLocal, ahoraSql, modZona, ajuste } from '../db.js';
 import { esGestor, esSuperadmin } from '../middleware/auth.js';
 import { actualizarEstadosPorFecha } from './licencias.js';
+import { resumenSalud } from './retencion.js';
 
 const redondear = (n) => Math.round(n * 100) / 100;
 
@@ -69,6 +70,7 @@ export function resumen(usuario) {
     })(),
   };
 
+  salida.salud = resumenSalud(usuario);
   if (!esSuperadmin(usuario)) {
     // Admin y vendedor ven solo su propia comisión, nunca la bolsa de comisiones de la agencia.
     const propias = db.prepare(`SELECT COALESCE(SUM(CASE WHEN estado = 'devengada' THEN monto END),0) AS pendiente, COALESCE(SUM(CASE WHEN estado = 'liquidada' THEN monto END),0) AS liquidada,

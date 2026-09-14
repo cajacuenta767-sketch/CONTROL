@@ -53,6 +53,8 @@ export function Reportes() {
   const [meses, setMeses] = useState(6);
   const [s, setS] = useState<Series | null>(null);
   useEffect(() => { setS(null); api.get<Series>('/reportes/series', { meses }).then(setS); }, [meses]);
+  const [enc, setEnc] = useState<any | null>(null);
+  useEffect(() => { api.get<any>('/reportes/encuestas').then(setEnc).catch(() => null); }, []);
 
   const tabla = useMemo(() => {
     if (!s) return [];
@@ -84,6 +86,21 @@ export function Reportes() {
           </div>
           <Tarjeta titulo="Cobros por producto"><BarrasApiladas meses={s.meses} puntos={s.por_producto} moneda={s.moneda_base} /></Tarjeta>
           {esSuper && <Tarjeta titulo="Cobros por vendedor"><BarrasApiladas meses={s.meses} puntos={s.por_vendedor} moneda={s.moneda_base} /></Tarjeta>}
+          {enc && (
+            <Tarjeta titulo="Satisfacción del cliente (encuesta de 1 pregunta)" acciones={<span className="suave pequeno">{enc.total.n} respuesta(s) · promedio {enc.total.promedio ?? '—'} de 5</span>}>
+              {enc.total.n === 0 ? <p className="suave" style={{ margin: 0 }}>Todavía sin respuestas. Se pregunta en el portal tras cerrar un ticket o pagar una compra.</p> : (
+                <div className="grid-2">
+                  <Tabla filas={enc.por_producto} clave={(p: any) => p.producto} titulo="Encuestas por producto" columnas={[
+                    { titulo: 'Producto', celda: (p: any) => p.producto },
+                    { titulo: 'Promedio', celda: (p: any) => <strong style={{ color: p.promedio >= 4 ? 'var(--ok)' : p.promedio >= 3 ? 'var(--aviso)' : 'var(--mal)' }}>{p.promedio} / 5</strong>, alinear: 'derecha' },
+                    { titulo: 'Respuestas', celda: (p: any) => p.respuestas, alinear: 'derecha' },
+                    { titulo: 'Bajas (≤2)', celda: (p: any) => p.bajas, alinear: 'derecha' },
+                  ]} />
+                  <ul className="lista-simple">{enc.ultimas.filter((e: any) => e.comentario).slice(0, 8).map((e: any) => <li key={e.id}><span><strong>{e.puntaje}/5</strong> {e.cliente_nombre}{e.producto ? ` · ${e.producto}` : ''}<div className="suave pequeno">{e.comentario}</div></span></li>)}</ul>
+                </div>
+              )}
+            </Tarjeta>
+          )}
           <div className="grid-2">
             <Tarjeta titulo="Licencias activadas por mes">
               <BarrasApiladas meses={s.meses} puntos={s.licencias_nuevas.map((l) => ({ mes: l.mes, serie: 'Licencias', total: l.total }))} formato={(n) => String(Math.round(n))} compacto />

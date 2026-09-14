@@ -67,6 +67,8 @@ export function PortalInicio() {
       <h1 style={{ marginBottom: 4 }}>Hola, {r.cliente.nombre.split(' ')[0]}</h1>
       <p className="suave" style={{ marginTop: 0 }}>{r.cliente.empresa ? `${r.cliente.empresa} · ` : ''}{r.licencias.length} licencia(s)</p>
 
+      {(r as any).encuestas_pendientes?.length > 0 && <Encuesta pendiente={(r as any).encuestas_pendientes[0]} alResponder={cargar} />}
+
       <h2 style={{ margin: '18px 0 10px' }}>Tus licencias</h2>
       {r.licencias.length === 0 ? <Vacio icono="🔑" titulo="No hay licencias" /> : (
         <div className="portal-tarjetas">
@@ -148,3 +150,25 @@ export function PortalInicio() {
   );
 }
 
+
+/** Encuesta de una pregunta: 1 a 5 estrellas y comentario opcional. */
+function Encuesta({ pendiente, alResponder }: { pendiente: any; alResponder: () => Promise<void> }) {
+  const avisar = useAvisar();
+  const [puntaje, setPuntaje] = useState(0);
+  const [comentario, setComentario] = useState('');
+  const [listo, setListo] = useState(false);
+  if (listo) return <Aviso tipo="ok">¡Gracias! Tu respuesta nos ayuda a mejorar.</Aviso>;
+  return (
+    <Tarjeta titulo={pendiente.pregunta} acciones={<span className="suave pequeno">Una sola pregunta</span>}>
+      <div className="fila" style={{ gap: 4 }} role="radiogroup" aria-label="Puntaje">
+        {[1, 2, 3, 4, 5].map((n) => <button key={n} className="btn-texto" aria-label={`${n} de 5`} style={{ fontSize: 26, color: n <= puntaje ? '#f59e0b' : 'var(--borde)' }} onClick={() => setPuntaje(n)}>★</button>)}
+      </div>
+      {puntaje > 0 && (
+        <div className="fila" style={{ marginTop: 8 }}>
+          <input placeholder={puntaje <= 3 ? '¿Qué podemos mejorar?' : 'Algo que quieras contarnos (opcional)'} value={comentario} onChange={(e) => setComentario(e.target.value)} style={{ flex: 1, minWidth: 220 }} />
+          <BotonAccion texto="Enviar" className="btn chico" onClick={async () => { await apiPortal.post('/encuestas', { motivo: pendiente.motivo, puntaje, comentario: comentario || undefined, ticket_id: pendiente.ticket_id, venta_id: pendiente.venta_id }); setListo(true); avisar('Gracias por responder'); await alResponder(); }} />
+        </div>
+      )}
+    </Tarjeta>
+  );
+}

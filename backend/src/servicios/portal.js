@@ -3,6 +3,7 @@ import { ErrorHttp, noEncontrado } from '../middleware/errores.js';
 import { firmarCliente, esGestor } from '../middleware/auth.js';
 import { auditar } from './auditoria.js';
 import { alertarDuenoSinEsperar } from './mensajeria.js';
+import { encuestasPendientes } from './retencion.js';
 import { obtenerVenta, crearVenta } from './ventas.js';
 import { crearEnlace, proveedoresDisponibles } from './pagos_en_linea.js';
 import { enviarCorreo, plantilla } from './correo.js';
@@ -49,7 +50,7 @@ export function resumenPortal(cliente) {
     .all(cliente.id);
   const tickets = listarTicketsCliente(cliente.id);
   const marca = licencias.find((l) => l.marca_nombre)?.marca_nombre || ajuste('nombre_agencia', 'CONTROL');
-  return { cliente, agencia: marca, licencias, ventas, tickets, pasarelas: proveedoresDisponibles() };
+  return { cliente, agencia: marca, licencias, ventas, tickets, pasarelas: proveedoresDisponibles(), encuestas_pendientes: encuestasPendientes(cliente.id) };
 }
 
 /** El cliente pide renovar desde el portal: venta de renovación + enlace de pago. */

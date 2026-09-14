@@ -11,8 +11,10 @@ export function Clientes() {
   const [abierto, setAbierto] = useState(false);
   const [nc, setNc] = useState({ nombre: '', empresa: '', telefono: '', email: '', pais: '', notas: '', moneda: '' });
   const nav = useNavigate();
+  const [salud, setSalud] = useState<Record<number, any>>({});
   const cargar = () => api.get<any[]>('/clientes', { q }).then(setClientes);
   useEffect(() => { cargar(); }, [q]);
+  useEffect(() => { api.get<any[]>('/clientes/salud').then((l) => setSalud(Object.fromEntries(l.map((c) => [c.id, c])))).catch(() => null); }, []);
 
   return (
     <>
@@ -23,6 +25,7 @@ export function Clientes() {
           { titulo: 'Nombre', celda: (c) => <>{c.nombre}{c.empresa && <span className="suave"> · {c.empresa}</span>}</>, orden: (c) => c.nombre },
           { titulo: 'Contacto', celda: (c) => <>{c.telefono || ''}{c.telefono && c.email ? ' · ' : ''}{c.email || ''}</> },
           { titulo: 'País', celda: (c) => <>{c.pais || '—'} <span className="suave pequeno">{c.moneda}</span></> },
+          { titulo: 'Salud', celda: (c) => <Semaforo s={salud[c.id]} />, orden: (c) => salud[c.id]?.puntaje ?? 101 },
           { titulo: 'Licencias', celda: (c) => `${c.licencias_activas} activas / ${c.licencias}`, alinear: 'derecha' },
           ...(esGestor ? [{ titulo: 'Vendedor', celda: (c: any) => c.vendedor_nombre || '—' }] : []),
           { titulo: 'Alta', celda: (c) => fecha(c.creado_en), orden: (c) => c.creado_en },
@@ -40,5 +43,17 @@ export function Clientes() {
         </Formulario>
       </Modal>
     </>
+  );
+}
+
+export function Semaforo({ s, detalle = false }: { s?: any; detalle?: boolean }) {
+  if (!s || s.semaforo === 'sin_licencias') return <span className="suave pequeno">—</span>;
+  const color = s.semaforo === 'verde' ? 'var(--ok)' : s.semaforo === 'ambar' ? 'var(--aviso)' : 'var(--mal)';
+  return (
+    <span title={s.factores.join(' · ')} className="fila" style={{ gap: 6, display: 'inline-flex' }}>
+      <span aria-label={s.semaforo} style={{ width: 10, height: 10, borderRadius: '50%', background: color, display: 'inline-block' }} />
+      <span className="pequeno">{s.puntaje}</span>
+      {detalle && <span className="suave pequeno">· {s.factores.join(' · ')}</span>}
+    </span>
   );
 }

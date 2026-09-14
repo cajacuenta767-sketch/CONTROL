@@ -15,6 +15,7 @@ interface Resumen {
   pagos_pendientes: any[]; ultimas_ventas: any[]; caja_hoy: string | null;
   equipo?: any[]; alertas?: Record<string, any>; ventas_por_dia?: { dia: string; total: number }[];
   moneda_base?: string; enlace_venta?: string | null; meta?: { objetivo: number; bono_pct: number; vendido: number; cumplida: boolean } | null;
+  salud?: { conteo: Record<string, number>; en_riesgo: any[] };
 }
 
 export function Panel() {
@@ -133,7 +134,17 @@ export function Panel() {
           ]} />
         </Tarjeta>
 
-        <Tarjeta titulo="Vencen en 30 días" acciones={<span className="suave pequeno">Oportunidad de renovación</span>}>
+        {r.salud && (
+          <Tarjeta titulo="Clientes en riesgo" acciones={<span className="chips"><span className="chip" style={{ color: 'var(--ok)' }}>● {r.salud.conteo.verde || 0}</span><span className="chip" style={{ color: 'var(--aviso)' }}>● {r.salud.conteo.ambar || 0}</span><span className="chip" style={{ color: 'var(--mal)' }}>● {r.salud.conteo.rojo || 0}</span></span>}>
+            <Tabla filas={r.salud.en_riesgo} clave={(c) => c.id} vacio="Ningún cliente en riesgo. Bien." onFila={(c) => nav(`/clientes/${c.id}`)} columnas={[
+              { titulo: 'Cliente', celda: (c) => <><span style={{ width: 10, height: 10, borderRadius: '50%', display: 'inline-block', marginRight: 6, background: c.semaforo === 'rojo' ? 'var(--mal)' : 'var(--aviso)' }} />{c.nombre}</> },
+              { titulo: 'Por qué', celda: (c) => <span className="pequeno">{c.factores.join(' · ')}</span> },
+              { titulo: '', celda: (c) => <BotonWhatsApp telefono={c.telefono} texto={`Hola ${c.nombre}, te escribo de ${ajustes.nombre_agencia || 'la agencia'} para ver cómo va el sistema y ayudarte con lo que necesites.`} etiqueta="Llamar" /> },
+            ]} />
+          </Tarjeta>
+        )}
+
+        <Tarjeta titulo="Vencen en 30 días" acciones={<Link to="/renovaciones">Campaña de renovación</Link>}>
           <Tabla filas={r.licencias.vencen_pronto} clave={(l) => l.id} vacio="Nada por vencer en los próximos 30 días" onFila={(l) => nav(`/licencias/${l.id}`)} columnas={[
             { titulo: 'Cliente', celda: (l) => l.cliente_nombre },
             { titulo: 'Producto', celda: (l) => `${l.producto_nombre}${l.etiqueta ? ` · ${l.etiqueta}` : ''}` },

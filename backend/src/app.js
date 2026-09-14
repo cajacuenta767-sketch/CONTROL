@@ -15,7 +15,7 @@ import { rutasClientes } from './rutas/clientes.rutas.js';
 import { rutasVentas, rutasPagos } from './rutas/ventas.rutas.js';
 import { rutasLicencias, rutasLicenciasPublicas } from './rutas/licencias.rutas.js';
 import { rutasCaja, rutasComisiones, rutasLiquidaciones } from './rutas/caja.rutas.js';
-import { rutasReportes, rutasAuditoria, rutasAjustes, rutasCorreos, rutasErrores, rutasSistema } from './rutas/sistema.rutas.js';
+import { rutasReportes, rutasAuditoria, rutasAjustes, rutasCorreos, rutasErrores, rutasSistema, rutasRenovaciones } from './rutas/sistema.rutas.js';
 import { rutasPublico, rutasWebhooks } from './rutas/publico.rutas.js';
 import { rutasPortal, rutasTickets } from './rutas/portal.rutas.js';
 
@@ -53,6 +53,7 @@ export function crearApp() {
   app.use('/api/v1/comisiones', rutasComisiones);
   app.use('/api/v1/liquidaciones', rutasLiquidaciones);
   app.use('/api/v1/reportes', rutasReportes);
+  app.use('/api/v1/renovaciones', rutasRenovaciones);
   app.use('/api/v1/auditoria', rutasAuditoria);
   app.use('/api/v1/ajustes', rutasAjustes);
   app.use('/api/v1/publico', rutasPublico);

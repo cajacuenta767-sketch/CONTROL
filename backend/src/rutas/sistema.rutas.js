@@ -7,12 +7,20 @@ import { probarSmtp, listarCorreos, obtenerCorreo } from '../servicios/correo.js
 import { obtenerDb, guardarAjuste } from '../db.js';
 import { auditar, listarAuditoria } from '../servicios/auditoria.js';
 import { resumen, buscar, series } from '../servicios/reportes.js';
+import { reporteEncuestas, campanaRenovaciones, generarRenovaciones } from '../servicios/retencion.js';
 
 export const rutasReportes = Router();
 rutasReportes.use(requerirAuth);
 rutasReportes.get('/resumen', asincrono((req, res) => res.json(resumen(req.usuario))));
 rutasReportes.get('/series', asincrono((req, res) => res.json(series(req.usuario, { meses: req.query.meses }))));
 rutasReportes.get('/buscar', asincrono((req, res) => res.json(buscar(req.usuario, req.query.q))));
+rutasReportes.get('/encuestas', asincrono((req, res) => res.json(reporteEncuestas(req.usuario))));
+
+export const rutasRenovaciones = Router();
+rutasRenovaciones.use(requerirAuth);
+rutasRenovaciones.get('/', asincrono((req, res) => res.json(campanaRenovaciones(req.usuario, { dias: Number(req.query.dias) || 30 }))));
+rutasRenovaciones.post('/generar', validar(z.object({ licencia_ids: z.array(z.number().int()).min(1).max(200), proveedor: z.string().optional(), enviar: z.boolean().optional() })),
+  asincrono(async (req, res) => res.json(await generarRenovaciones(req.datos, req.usuario))));
 
 export const rutasAuditoria = Router();
 rutasAuditoria.use(requerirAuth, requerirRol('superadmin'));

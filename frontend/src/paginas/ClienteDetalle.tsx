@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, dinero, fecha } from '../api';
 import { useSesion } from '../sesion';
 import { Campo, Cargando, Clave, Estado, Formulario, Modal, Tabla, Tarjeta, Vacio } from '../componentes/ui';
+import { Semaforo } from './Clientes';
 
 const TIPO_EVENTO: Record<string, string> = { venta: 'Venta', pago: 'Pago', activacion: 'Activación', ticket: 'Ticket', licencia: 'Licencia' };
 
@@ -15,6 +16,8 @@ export function ClienteDetalle() {
   const [f, setF] = useState<any>({});
   const [equipo, setEquipo] = useState<any[]>([]);
   const [historial, setHistorial] = useState<any[] | null>(null);
+  const [salud, setSalud] = useState<any | null>(null);
+  useEffect(() => { api.get<any>(`/clientes/${id}/salud`).then(setSalud).catch(() => null); }, [id]);
   useEffect(() => { api.get<any[]>(`/clientes/${id}/historial`).then(setHistorial).catch(() => setHistorial([])); }, [id]);
   const cargar = useCallback(() => api.get<any>(`/clientes/${id}`).then((x) => { setC(x); setF({ nombre: x.nombre, empresa: x.empresa || '', telefono: x.telefono || '', email: x.email || '', pais: x.pais || '', notas: x.notas || '', vendedor_id: x.vendedor_id || '' }); }), [id]);
   useEffect(() => { cargar(); }, [cargar]);
@@ -24,12 +27,15 @@ export function ClienteDetalle() {
   return (
     <>
       <header>
-        <div><h1>{c.nombre}</h1><p>{c.empresa || 'Sin empresa'} · {c.pais || 'país no indicado'} · vendedor {c.vendedor_nombre || '—'}</p></div>
+        <div><h1>{c.nombre} {salud && <Semaforo s={salud} />}</h1><p>{c.empresa || 'Sin empresa'} · {c.pais || 'país no indicado'} · vendedor {c.vendedor_nombre || '—'}</p></div>
         <div className="fila">
           <Link to={`/ventas/nueva?cliente_id=${c.id}`} className="btn">+ Venta para este cliente</Link>
           <button className="btn secundario" onClick={() => setEditar(true)}>Editar</button>
         </div>
       </header>
+      {salud && salud.semaforo !== 'verde' && salud.semaforo !== 'sin_licencias' && (
+        <div className={`aviso ${salud.semaforo === 'rojo' ? 'error' : 'alerta'}`}><strong>Cliente en riesgo ({salud.puntaje}/100):</strong> {salud.factores.join(' · ')}. Llámalo antes de que se vaya.</div>
+      )}
       <div className="grid-2">
         <Tarjeta titulo="Contacto">
           <dl className="definiciones">
