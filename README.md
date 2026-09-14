@@ -13,8 +13,9 @@ ReservaFlow, Avendia, BARBER-PRO…) desde un solo panel.
 - **Productos**: cada instalación se activa con una clave `CTL-XXXX-XXXX-XXXX-XXXX` atada
   a un equipo o dominio, y recibe un token firmado (Ed25519) que verifica sin internet.
 
-La especificación completa está en [`docs/01-especificacion.md`](docs/01-especificacion.md)
-y la guía para conectar cada producto en [`docs/02-integracion-productos.md`](docs/02-integracion-productos.md).
+La especificación completa está en [`docs/01-especificacion.md`](docs/01-especificacion.md),
+la guía para conectar cada producto en [`docs/02-integracion-productos.md`](docs/02-integracion-productos.md)
+y la revisión con la hoja de mejoras pendientes en [`docs/03-revision-y-mejoras.md`](docs/03-revision-y-mejoras.md).
 
 ## Puesta en marcha
 
@@ -52,8 +53,11 @@ SUPERADMIN_EMAIL=tu@correo.com SUPERADMIN_NOMBRE="Tu nombre" SUPERADMIN_CLAVE='U
 ## Producción
 
 1. Copia `backend/.env.example` a `backend/.env` y cambia `JWT_SECRETO` y `ORIGENES`.
+   Sin `JWT_SECRETO` propio, el arranque en producción se detiene.
 2. `npm run build && npm start` detrás de un proxy HTTPS (Caddy, Nginx).
-3. Respalda `backend/datos/control.db`: contiene la clave privada Ed25519 que firma las
+3. En Ajustes, verifica la **zona horaria** (−5 para Lima/Bogotá, −4 para La Paz/Santiago):
+   define qué día es "hoy" para la caja y los reportes.
+4. Respalda `backend/datos/control.db`: contiene la clave privada Ed25519 que firma las
    licencias. Si se pierde, todas las instalaciones deben reactivarse.
 
 ## Estructura

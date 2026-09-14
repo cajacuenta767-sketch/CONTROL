@@ -13,10 +13,15 @@ export const sesion = {
   cerrar: () => { try { localStorage.removeItem(CLAVE_TOKEN); } catch { /* ignorar */ } },
 };
 
+export const recordar = {
+  leer: (clave: string): string | null => { try { return localStorage.getItem(`control.${clave}`); } catch { return null; } },
+  guardar: (clave: string, valor: string | null) => { try { valor === null ? localStorage.removeItem(`control.${clave}`) : localStorage.setItem(`control.${clave}`, valor); } catch { /* ignorar */ } },
+};
+
 export class ErrorApi extends Error {
   status: number; detalles?: string[]; cuerpo: any;
   constructor(status: number, cuerpo: any) {
-    super(cuerpo?.error || `Error ${status}`);
+    super(cuerpo?.error || (status === 0 ? 'Sin conexión con el servidor' : `Error ${status}`));
     this.status = status; this.detalles = cuerpo?.detalles; this.cuerpo = cuerpo;
   }
 }
@@ -25,7 +30,12 @@ async function llamar<T>(metodo: string, ruta: string, cuerpo?: unknown): Promis
   const cabeceras: Record<string, string> = { 'Content-Type': 'application/json' };
   const t = sesion.token();
   if (t) cabeceras.Authorization = `Bearer ${t}`;
-  const r = await fetch(`/api/v1${ruta}`, { method: metodo, headers: cabeceras, body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo) });
+  let r: Response;
+  try {
+    r = await fetch(`/api/v1${ruta}`, { method: metodo, headers: cabeceras, body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo) });
+  } catch {
+    throw new ErrorApi(0, null);
+  }
   const datos = r.status === 204 ? null : await r.json().catch(() => null);
   if (!r.ok) {
     if (r.status === 401 && !ruta.startsWith('/auth/login')) { sesion.cerrar(); window.location.href = '/login'; }
@@ -51,12 +61,36 @@ export const dinero = (n: number | null | undefined, moneda = 'USD') =>
 
 export const fecha = (s: string | null | undefined, conHora = false) => {
   if (!s) return '—';
-  const d = new Date(s.includes('T') ? s : `${s.replace(' ', 'T')}Z`);
+  const d = new Date(s.includes('T') ? s : `${s.replace(' ', 'T')}${s.length > 10 ? 'Z' : 'T00:00:00'}`);
   if (Number.isNaN(d.getTime())) return s;
   return conHora ? d.toLocaleString('es', { dateStyle: 'short', timeStyle: 'short' }) : d.toLocaleDateString('es', { dateStyle: 'medium' });
 };
 
-export const hoy = () => new Date().toISOString().slice(0, 10);
+/** Fecha de hoy en la zona horaria del navegador (YYYY-MM-DD). */
+export const hoy = (desplazamientoDias = 0) => {
+  const d = new Date(Date.now() + desplazamientoDias * 86400000);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+export const inicioMes = () => hoy().slice(0, 8) + '01';
+
+/** Enlace a WhatsApp con mensaje prellenado; null si no hay teléfono. */
+export const whatsapp = (telefono: string | null | undefined, texto: string) => {
+  const n = String(telefono || '').replace(/\D/g, '');
+  return n ? `https://wa.me/${n}?text=${encodeURIComponent(texto)}` : null;
+};
+
+/** Descarga un CSV con las filas dadas (separador ; para Excel en español). */
+export function descargarCsv(nombre: string, filas: Record<string, unknown>[]) {
+  if (!filas.length) return;
+  const columnas = Object.keys(filas[0]);
+  const esc = (v: unknown) => { const s = v == null ? '' : String(v); return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+  const csv = [columnas.join(';'), ...filas.map((f) => columnas.map((c) => esc(f[c])).join(';'))].join('\n');
+  const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = `${nombre}-${hoy()}.csv`; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
 
 export const ETIQUETA_ESTADO: Record<string, string> = {
   pendiente_pago: 'Pendiente de pago', activa: 'Activa', mora: 'En mora', suspendida: 'Suspendida', vencida: 'Vencida', revocada: 'Revocada',

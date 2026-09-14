@@ -1,6 +1,7 @@
+import { useEffect, useState } from 'react';
 import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import { useSesion } from './sesion';
-import { Cargando } from './componentes/ui';
+import { Cargando, LimiteErrores } from './componentes/ui';
 import { Login } from './paginas/Login';
 import { Panel } from './paginas/Panel';
 import { Ventas } from './paginas/Ventas';
@@ -17,53 +18,86 @@ import { Comisiones } from './paginas/Comisiones';
 import { Auditoria } from './paginas/Auditoria';
 import { Ajustes } from './paginas/Ajustes';
 
+const I = {
+  panel: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="5" rx="1.5"/><rect x="13" y="10" width="8" height="11" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/></svg>,
+  ventas: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg>,
+  licencias: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="8" cy="14" r="4"/><path d="M11 11l9-9M16 4l3 3M13 7l3 3"/></svg>,
+  clientes: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0113 0"/><circle cx="17" cy="9" r="2.5"/><path d="M15.5 14.5a5 5 0 016 5"/></svg>,
+  caja: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M7 12h.01M17 12h.01"/></svg>,
+  comisiones: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 5L5 19"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/></svg>,
+  catalogo: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 7l9-4 9 4-9 4z"/><path d="M3 7v10l9 4 9-4V7M12 11v10"/></svg>,
+  equipo: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2M3 12h18"/></svg>,
+  auditoria: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3h8l4 4v14H4V3z"/><path d="M8 12h8M8 16h5"/></svg>,
+  ajustes: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>,
+};
+
+const TITULOS: [string, string][] = [
+  ['/ventas/nueva', 'Nueva venta'], ['/ventas', 'Ventas'], ['/licencias', 'Licencias'], ['/clientes', 'Clientes'], ['/caja', 'Caja'],
+  ['/comisiones', 'Comisiones'], ['/catalogo', 'Catálogo'], ['/equipo', 'Equipo'], ['/auditoria', 'Auditoría'], ['/ajustes', 'Ajustes'], ['/login', 'Entrar'],
+];
+
 export function App() {
   const { usuario, cargando, salir, esGestor, esSuper } = useSesion();
   const ubicacion = useLocation();
-  if (cargando) return <div className="login"><Cargando /></div>;
+  const [menu, setMenu] = useState(false);
+  useEffect(() => {
+    setMenu(false);
+    const t = TITULOS.find(([p]) => ubicacion.pathname.startsWith(p))?.[1] || 'Panel';
+    document.title = `${t} · CONTROL`;
+  }, [ubicacion.pathname]);
+
+  if (cargando) return <div className="login-form" style={{ minHeight: '100vh' }}><Cargando /></div>;
   if (!usuario) return ubicacion.pathname === '/login' ? <Login /> : <Navigate to="/login" replace />;
   if (ubicacion.pathname === '/login') return <Navigate to="/" replace />;
 
-  const enlaces = [
-    { a: '/', t: 'Panel', i: '▦' },
-    { a: '/ventas', t: 'Ventas', i: '🧾' },
-    { a: '/licencias', t: 'Licencias', i: '🔑' },
-    { a: '/clientes', t: 'Clientes', i: '👥' },
-    { a: '/caja', t: 'Caja', i: '💵' },
-    { a: '/comisiones', t: 'Comisiones', i: '％' },
-    ...(esGestor ? [{ a: '/catalogo', t: 'Catálogo', i: '📦' }, { a: '/equipo', t: 'Equipo', i: '🧑‍💼' }, { a: '/auditoria', t: 'Auditoría', i: '📋' }] : []),
-    ...(esSuper ? [{ a: '/ajustes', t: 'Ajustes', i: '⚙️' }] : []),
+  const grupos: { titulo?: string; enlaces: { a: string; t: string; i: keyof typeof I }[] }[] = [
+    { enlaces: [{ a: '/', t: 'Panel', i: 'panel' }, { a: '/ventas', t: 'Ventas', i: 'ventas' }, { a: '/licencias', t: 'Licencias', i: 'licencias' }, { a: '/clientes', t: 'Clientes', i: 'clientes' }] },
+    { titulo: 'Dinero', enlaces: [{ a: '/caja', t: 'Caja', i: 'caja' }, { a: '/comisiones', t: 'Comisiones', i: 'comisiones' }] },
+    ...(esGestor ? [{ titulo: 'Administración', enlaces: [{ a: '/catalogo', t: 'Catálogo', i: 'catalogo' as const }, { a: '/equipo', t: 'Equipo', i: 'equipo' as const }, { a: '/auditoria', t: 'Auditoría', i: 'auditoria' as const }, ...(esSuper ? [{ a: '/ajustes', t: 'Ajustes', i: 'ajustes' as const }] : [])] }] : []),
   ];
+  const rolTexto = usuario.rol === 'superadmin' ? 'Superadministrador' : usuario.rol === 'admin' ? 'Administrador' : `Vendedor · ${usuario.comision_pct}% comisión`;
 
   return (
     <div className="app">
-      <nav className="lateral">
-        <div className="marca">CONTROL<small>Panel de la agencia</small></div>
-        {enlaces.map((e) => <NavLink key={e.a} to={e.a} end={e.a === '/'} className={({ isActive }) => (isActive ? 'activa' : '')}><span>{e.i}</span>{e.t}</NavLink>)}
+      <div className="topbar">
+        <span className="marca"><span className="logo">C</span>CONTROL</span>
+        <button className="hamburguesa" onClick={() => setMenu(true)} aria-label="Abrir menú">☰</button>
+      </div>
+      {menu && <div className="velo" onClick={() => setMenu(false)} />}
+      <nav className={`lateral ${menu ? 'abierto' : ''}`}>
+        <div className="marca"><span className="logo">C</span><span>CONTROL<small>Panel de la agencia</small></span></div>
+        {grupos.map((g, gi) => (
+          <div key={gi} style={{ display: 'contents' }}>
+            {g.titulo && <div className="seccion">{g.titulo}</div>}
+            {g.enlaces.map((e) => <NavLink key={e.a} to={e.a} end={e.a === '/'} className={({ isActive }) => (isActive ? 'activa' : '')}>{I[e.i]}{e.t}</NavLink>)}
+          </div>
+        ))}
         <div className="usuario">
           <strong>{usuario.nombre}</strong>
-          <span className="suave">{usuario.rol === 'superadmin' ? 'Superadministrador' : usuario.rol === 'admin' ? 'Administrador' : `Vendedor · ${usuario.comision_pct}% comisión`}</span>
-          <button className="btn secundario chico" onClick={salir}>Cerrar sesión</button>
+          <span className="suave">{rolTexto}</span>
+          <div><button className="btn secundario chico" onClick={salir}>Cerrar sesión</button></div>
         </div>
       </nav>
       <main className="contenido">
-        <Routes>
-          <Route path="/" element={<Panel />} />
-          <Route path="/ventas" element={<Ventas />} />
-          <Route path="/ventas/nueva" element={<VentaNueva />} />
-          <Route path="/ventas/:id" element={<VentaDetalle />} />
-          <Route path="/licencias" element={<Licencias />} />
-          <Route path="/licencias/:id" element={<LicenciaDetalle />} />
-          <Route path="/clientes" element={<Clientes />} />
-          <Route path="/clientes/:id" element={<ClienteDetalle />} />
-          <Route path="/caja" element={<Caja />} />
-          <Route path="/comisiones" element={<Comisiones />} />
-          {esGestor && <Route path="/catalogo" element={<Catalogo />} />}
-          {esGestor && <Route path="/equipo" element={<Equipo />} />}
-          {esGestor && <Route path="/auditoria" element={<Auditoria />} />}
-          {esSuper && <Route path="/ajustes" element={<Ajustes />} />}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <LimiteErrores>
+          <Routes>
+            <Route path="/" element={<Panel />} />
+            <Route path="/ventas" element={<Ventas />} />
+            <Route path="/ventas/nueva" element={<VentaNueva />} />
+            <Route path="/ventas/:id" element={<VentaDetalle />} />
+            <Route path="/licencias" element={<Licencias />} />
+            <Route path="/licencias/:id" element={<LicenciaDetalle />} />
+            <Route path="/clientes" element={<Clientes />} />
+            <Route path="/clientes/:id" element={<ClienteDetalle />} />
+            <Route path="/caja" element={<Caja />} />
+            <Route path="/comisiones" element={<Comisiones />} />
+            {esGestor && <Route path="/catalogo" element={<Catalogo />} />}
+            {esGestor && <Route path="/equipo" element={<Equipo />} />}
+            {esGestor && <Route path="/auditoria" element={<Auditoria />} />}
+            {esSuper && <Route path="/ajustes" element={<Ajustes />} />}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </LimiteErrores>
       </main>
     </div>
   );

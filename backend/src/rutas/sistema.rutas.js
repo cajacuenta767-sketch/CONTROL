@@ -18,7 +18,7 @@ rutasAuditoria.get('/', asincrono((req, res) => res.json(listarAuditoria({
   accion: req.query.accion, usuarioId: req.query.usuario_id ? Number(req.query.usuario_id) : undefined, entidad: req.query.entidad,
 }))));
 
-const AJUSTES_EDITABLES = ['nombre_agencia', 'moneda_base', 'tope_descuento_pct', 'comision_renovacion_pct', 'gracia_dias', 'demo_dias', 'soporte_vitalicio_dias', 'metodos_en_mano'];
+const AJUSTES_EDITABLES = ['nombre_agencia', 'moneda_base', 'tope_descuento_pct', 'comision_renovacion_pct', 'gracia_dias', 'demo_dias', 'soporte_vitalicio_dias', 'metodos_en_mano', 'desfase_horario_horas'];
 
 export const rutasAjustes = Router();
 rutasAjustes.use(requerirAuth);

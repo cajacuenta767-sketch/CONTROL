@@ -235,7 +235,8 @@ const MIGRACIONES = [
         ('gracia_dias', '7'),
         ('demo_dias', '7'),
         ('soporte_vitalicio_dias', '365'),
-        ('metodos_en_mano', 'efectivo');
+        ('metodos_en_mano', 'efectivo'),
+        ('desfase_horario_horas', '-5');
     `,
   },
 ];
@@ -285,4 +286,25 @@ export function ahoraSql(desplazamientoDias = 0) {
 
 export function hoySql() {
   return new Date().toISOString().slice(0, 10);
+}
+
+/**
+ * Zona horaria de la agencia. SQLite guarda todo en UTC; para agrupar "por día"
+ * (caja, ventas de hoy, topes diarios) se aplica el desfase configurado
+ * (p. ej. -5 para Lima/Bogotá, -4 para La Paz/Santiago).
+ */
+export function desfaseHoras() {
+  const v = Number(ajuste('desfase_horario_horas', '-5'));
+  return Number.isFinite(v) ? v : -5;
+}
+
+/** Modificador SQLite para convertir una columna UTC a hora local: date(col, modZona()). */
+export function modZona() {
+  const h = desfaseHoras();
+  return `${h >= 0 ? '+' : ''}${h} hours`;
+}
+
+/** Fecha de hoy (YYYY-MM-DD) en la zona horaria de la agencia. */
+export function hoyLocal() {
+  return new Date(Date.now() + desfaseHoras() * 3600000).toISOString().slice(0, 10);
 }

@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { obtenerDb, transaccion, ajusteNumero, ahoraSql } from '../db.js';
+import { obtenerDb, transaccion, ajusteNumero, ahoraSql, modZona } from '../db.js';
 import { ErrorHttp, noEncontrado, prohibido } from '../middleware/errores.js';
 import { esGestor, esSuperadmin } from '../middleware/auth.js';
 import { auditar } from './auditoria.js';
@@ -123,8 +123,8 @@ export function listarVentas(usuario, { estado, vendedor_id, cliente_id, desde, 
   else if (vendedor_id) { condiciones.push('v.vendedor_id = ?'); params.push(vendedor_id); }
   if (estado) { condiciones.push('v.estado = ?'); params.push(estado); }
   if (cliente_id) { condiciones.push('v.cliente_id = ?'); params.push(cliente_id); }
-  if (desde) { condiciones.push('date(v.creado_en) >= ?'); params.push(desde); }
-  if (hasta) { condiciones.push('date(v.creado_en) <= ?'); params.push(hasta); }
+  if (desde) { condiciones.push('date(v.creado_en, ?) >= ?'); params.push(modZona(), desde); }
+  if (hasta) { condiciones.push('date(v.creado_en, ?) <= ?'); params.push(modZona(), hasta); }
   if (q) { condiciones.push('(v.numero LIKE ? OR c.nombre LIKE ? OR c.empresa LIKE ?)'); params.push(`%${q}%`, `%${q}%`, `%${q}%`); }
   const where = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : '';
   return obtenerDb().prepare(`${VENTA_BASE} ${where} ORDER BY v.id DESC LIMIT 500`).all(...params);

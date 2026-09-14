@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { createPublicKey } from 'node:crypto';
 import request from 'supertest';
 import { crearApp } from '../src/app.js';
-import { obtenerDb, reiniciarDb } from '../src/db.js';
+import { obtenerDb, reiniciarDb, hoyLocal } from '../src/db.js';
 import { crearUsuario } from '../src/servicios/usuarios.js';
 import { verificarToken } from '../src/firmas.js';
 
@@ -258,7 +258,7 @@ test('cierre de caja del vendedor y aprobación del superadmin', async () => {
 });
 
 test('liquidación de comisiones: se crea, se paga y las comisiones quedan liquidadas', async () => {
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = hoyLocal();
   const vendedorId = ctx.venta.vendedor_id;
   let r = await request(app).post('/api/v1/liquidaciones').set(auth('superadmin')).send({ vendedor_id: vendedorId, desde: hoy, hasta: hoy });
   assert.equal(r.status, 201, JSON.stringify(r.body));

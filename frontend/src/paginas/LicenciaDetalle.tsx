@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api, fecha } from '../api';
 import { useSesion } from '../sesion';
-import { AccionConMotivo, Aviso, Campo, Cargando, Clave, Estado, Tabla, Tarjeta } from '../componentes/ui';
+import { AccionConMotivo, Aviso, BotonAccion, BotonWhatsApp, Campo, Cargando, Clave, Estado, Tabla, Tarjeta } from '../componentes/ui';
 
 export function LicenciaDetalle() {
   const { id } = useParams();
@@ -10,27 +10,30 @@ export function LicenciaDetalle() {
   const [l, setL] = useState<any | null>(null);
   const [etiqueta, setEtiqueta] = useState('');
   const [max, setMax] = useState(1);
+  const [clientes, setClientes] = useState<any[]>([]);
   const [clienteDestino, setClienteDestino] = useState('');
   const cargar = useCallback(() => api.get<any>(`/licencias/${id}`).then((x) => { setL(x); setEtiqueta(x.etiqueta || ''); setMax(x.max_activaciones); }), [id]);
   useEffect(() => { cargar(); }, [cargar]);
+  useEffect(() => { if (esSuper) api.get<any[]>('/clientes').then(setClientes); }, [esSuper]);
   if (!l) return <Cargando />;
 
   const accion = (ruta: string, extra: object = {}) => async (motivo: string) => { await api.post(`/licencias/${id}/${ruta}`, { motivo, ...extra }); await cargar(); };
-  const guardarEtiqueta = async () => { await api.patch(`/licencias/${id}/etiqueta`, { etiqueta: etiqueta || null }); await cargar(); };
   const renovable = ['activa', 'mora', 'suspendida', 'vencida'].includes(l.estado) && l.plan_tipo !== 'demo';
+  const mensajeClave = `Hola ${l.cliente_nombre}, aquí tienes tu licencia de ${l.producto_nombre}${l.etiqueta ? ` (${l.etiqueta})` : ''}:\n\n${l.clave}\n\nActívala en el sistema, en Ajustes › Licencia. Se vincula al primer equipo donde la actives. Cualquier duda me escribes.`;
 
   return (
     <>
       <header>
         <div><h1><Clave valor={l.clave} /> <Estado valor={l.estado} /></h1><p>{l.producto_nombre} · {l.plan_nombre} · {l.cliente_nombre}{l.etiqueta ? ` · ${l.etiqueta}` : ''}</p></div>
         <div className="fila">
+          {['activa', 'mora'].includes(l.estado) && <BotonWhatsApp telefono={l.cliente_telefono} texto={mensajeClave} etiqueta="Enviar clave por WhatsApp" className="btn secundario" />}
           {renovable && <Link to={`/ventas/nueva?cliente_id=${l.cliente_id}&renueva=${l.id}`} className="btn">Renovar / mantenimiento</Link>}
           {esSuper && l.estado !== 'revocada' && (
             <>
-              {l.estado === 'suspendida' ? <AccionConMotivo titulo="Reanudar licencia" texto="Reanudar" className="btn ok" onConfirmar={accion('reanudar')} />
-                : l.estado !== 'pendiente_pago' && <AccionConMotivo titulo="Suspender licencia" texto="Suspender" onConfirmar={accion('suspender')} />}
-              <AccionConMotivo titulo="Resetear activaciones" texto="Resetear equipos" onConfirmar={accion('reset')} etiquetaMotivo="Motivo (p. ej. cambio de PC)" />
-              <AccionConMotivo titulo="Revocar licencia" texto="Revocar" className="btn peligro" onConfirmar={accion('revocar')} />
+              {l.estado === 'suspendida' ? <AccionConMotivo titulo="Reanudar licencia" texto="Reanudar" className="btn ok" onConfirmar={accion('reanudar')} exito="Licencia reanudada" />
+                : l.estado !== 'pendiente_pago' && <AccionConMotivo titulo="Suspender licencia" texto="Suspender" onConfirmar={accion('suspender')} exito="Licencia suspendida" descripcion="El sistema del cliente se bloqueará en su próxima verificación. Los datos no se tocan." />}
+              <AccionConMotivo titulo="Resetear activaciones" texto="Resetear equipos" onConfirmar={accion('reset')} etiquetaMotivo="Motivo (p. ej. cambio de PC)" exito="Equipos liberados" descripcion="Libera todos los equipos vinculados. El cliente podrá activar de nuevo en uno nuevo." />
+              <AccionConMotivo titulo="Revocar licencia" texto="Revocar" className="btn peligro" onConfirmar={accion('revocar')} exito="Licencia revocada" descripcion="Irreversible: la licencia queda inutilizable y no se puede renovar." />
             </>
           )}
         </div>
@@ -38,6 +41,7 @@ export function LicenciaDetalle() {
 
       {l.motivo_estado && l.estado !== 'activa' && <Aviso tipo={l.estado === 'mora' ? 'alerta' : 'error'}>{l.motivo_estado}</Aviso>}
       {l.estado === 'pendiente_pago' && <Aviso tipo="alerta">Se activará automáticamente cuando se confirme el pago de la <Link to={`/ventas/${l.venta_id}`}>venta {l.venta_numero}</Link>.</Aviso>}
+      {l.estado === 'activa' && l.activaciones_usadas === 0 && <Aviso tipo="info">Activa pero todavía no instalada en ningún equipo. Envíale la clave al cliente.</Aviso>}
 
       <div className="grid-2">
         <Tarjeta titulo="Datos">
@@ -55,14 +59,14 @@ export function LicenciaDetalle() {
           </dl>
           <div className="fila" style={{ marginTop: 12 }}>
             <input value={etiqueta} onChange={(e) => setEtiqueta(e.target.value)} placeholder="Etiqueta (p. ej. Sede Centro)" style={{ maxWidth: 260 }} />
-            <button className="btn secundario chico" onClick={guardarEtiqueta}>Guardar etiqueta</button>
+            <BotonAccion texto="Guardar etiqueta" className="btn secundario chico" exito="Etiqueta guardada" onClick={async () => { await api.patch(`/licencias/${id}/etiqueta`, { etiqueta: etiqueta || null }); await cargar(); }} />
           </div>
           {esSuper && (
             <div className="fila" style={{ marginTop: 12 }}>
-              <AccionConMotivo titulo="Cambiar máximo de equipos" texto="Cambiar máximo de equipos" className="btn secundario chico" onConfirmar={accion('max-activaciones', { max })}
+              <AccionConMotivo titulo="Cambiar máximo de equipos" texto="Cambiar máximo de equipos" className="btn secundario chico" onConfirmar={accion('max-activaciones', { max })} exito="Máximo actualizado"
                 extra={<Campo etiqueta="Máximo de equipos"><input type="number" min={1} max={100} value={max} onChange={(e) => setMax(Number(e.target.value))} /></Campo>} />
-              <AccionConMotivo titulo="Transferir a otro cliente" texto="Transferir" className="btn secundario chico" onConfirmar={accion('transferir', { cliente_id: Number(clienteDestino) })}
-                extra={<Campo etiqueta="ID del cliente destino"><input type="number" value={clienteDestino} onChange={(e) => setClienteDestino(e.target.value)} required /></Campo>} />
+              <AccionConMotivo titulo="Transferir a otro cliente" texto="Transferir" className="btn secundario chico" onConfirmar={accion('transferir', { cliente_id: Number(clienteDestino) })} exito="Licencia transferida"
+                extra={<Campo etiqueta="Cliente destino"><select value={clienteDestino} onChange={(e) => setClienteDestino(e.target.value)} required><option value="">Elegir…</option>{clientes.filter((c) => c.id !== l.cliente_id).map((c) => <option key={c.id} value={c.id}>{c.nombre}{c.empresa ? ` · ${c.empresa}` : ''}</option>)}</select></Campo>} />
             </div>
           )}
         </Tarjeta>

@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { config } from './config.js';
 import { manejarErrores } from './middleware/errores.js';
+import { middlewareContexto } from './contexto.js';
 import { rutasAuth } from './rutas/auth.rutas.js';
 import { rutasUsuarios } from './rutas/usuarios.rutas.js';
 import { rutasProductos, rutasPlanes } from './rutas/catalogo.rutas.js';
@@ -23,6 +24,7 @@ export function crearApp() {
   app.use(helmet({ contentSecurityPolicy: false }));
   app.use(cors({ origin: config.origenesPermitidos }));
   app.use(express.json({ limit: '1mb' }));
+  app.use(middlewareContexto);
   app.use('/api', rateLimit({ windowMs: 60 * 1000, limit: 600, standardHeaders: 'draft-8', legacyHeaders: false }));
 
   app.get('/api/v1/salud', (req, res) => res.json({ ok: true, hora: new Date().toISOString() }));

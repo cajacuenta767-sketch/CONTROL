@@ -1,10 +1,11 @@
 import { obtenerDb } from '../db.js';
+import { ipActual } from '../contexto.js';
 
 /** Registra una acción. Tabla de solo inserción: nunca se edita ni se borra. */
 export function auditar({ usuarioId = null, accion, entidad = null, entidadId = null, detalle = null, ip = null }) {
   obtenerDb()
     .prepare('INSERT INTO auditoria (usuario_id, accion, entidad, entidad_id, detalle, ip) VALUES (?, ?, ?, ?, ?, ?)')
-    .run(usuarioId, accion, entidad, entidadId, detalle == null ? null : JSON.stringify(detalle), ip);
+    .run(usuarioId, accion, entidad, entidadId, detalle == null ? null : JSON.stringify(detalle), ip ?? ipActual());
 }
 
 export function listarAuditoria({ pagina = 1, porPagina = 50, accion, usuarioId, entidad } = {}) {

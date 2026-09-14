@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { api, dinero } from '../api';
 import { useSesion } from '../sesion';
-import { Campo, Estado, Formulario, Modal, Tabla, Tarjeta } from '../componentes/ui';
+import { BotonAccion, Campo, Estado, Formulario, Modal, Tabla, Tarjeta } from '../componentes/ui';
 
 const VACIO = { email: '', nombre: '', clave: '', rol: 'vendedor', comision_pct: 20, tope_emisiones_dia: 20, tope_demos_semana: 10, telefono: '' };
 
 export function Equipo() {
-  const { esSuper } = useSesion();
+  const { esSuper, usuario } = useSesion();
   const [usuarios, setUsuarios] = useState<any[]>([]);
   const [nuevo, setNuevo] = useState(false);
   const [f, setF] = useState<any>(VACIO);
@@ -32,22 +32,22 @@ export function Equipo() {
       <header><div><h1>Equipo</h1><p>Vendedores y administradores, con lo que emitió y ganó cada uno.</p></div>{esSuper && <button className="btn" onClick={() => { setF(VACIO); setNuevo(true); }}>+ Usuario</button>}</header>
       <Tarjeta>
         <Tabla filas={usuarios} clave={(u) => u.id} columnas={[
-          { titulo: 'Nombre', celda: (u) => <>{u.nombre}<br /><span className="suave pequeno">{u.email}</span></> },
+          { titulo: 'Nombre', celda: (u) => <>{u.nombre}<br /><span className="suave pequeno">{u.email}</span></>, orden: (u) => u.nombre },
           { titulo: 'Rol', celda: (u) => <><Estado valor={u.rol} />{!u.activo && <> <Estado valor="suspendida" /></>}</> },
           { titulo: 'Comisión', celda: (u) => `${u.comision_pct}%`, alinear: 'derecha' },
           { titulo: 'Licencias emitidas', celda: (u) => <>{u.licencias_emitidas} <span className="suave pequeno">(hoy {u.licencias_hoy}{u.rol !== 'superadmin' ? ` / ${u.tope_emisiones_dia}` : ''})</span></>, alinear: 'derecha' },
           { titulo: 'Ventas', celda: (u) => u.ventas, alinear: 'derecha' },
-          { titulo: 'Vendido (pagado)', celda: (u) => dinero(u.total_vendido), alinear: 'derecha' },
+          { titulo: 'Vendido (pagado)', celda: (u) => dinero(u.total_vendido), alinear: 'derecha', orden: (u) => u.total_vendido },
           { titulo: 'Comisión pendiente', celda: (u) => dinero(u.comision_pendiente), alinear: 'derecha' },
           { titulo: 'Comisión pagada', celda: (u) => dinero(u.comision_liquidada), alinear: 'derecha' },
-          { titulo: '', celda: (u) => esSuper ? <div className="fila"><button className="btn secundario chico" onClick={() => setEditar({ ...u, clave: '' })}>Editar</button><button className="btn secundario chico" onClick={async () => { await api.patch(`/usuarios/${u.id}`, { activo: !u.activo }); await cargar(); }}>{u.activo ? 'Desactivar' : 'Activar'}</button></div> : null },
+          { titulo: '', celda: (u) => esSuper ? <div className="fila"><button className="btn secundario chico" onClick={() => setEditar({ ...u, clave: '' })}>Editar</button>{u.id !== usuario!.id && <BotonAccion texto={u.activo ? 'Desactivar' : 'Activar'} className="btn secundario chico" exito={u.activo ? 'Usuario desactivado' : 'Usuario activado'} onClick={async () => { await api.patch(`/usuarios/${u.id}`, { activo: !u.activo }); await cargar(); }} />}</div> : null },
         ]} />
       </Tarjeta>
       <Modal titulo="Nuevo usuario" abierto={nuevo} cerrar={() => setNuevo(false)}>
-        <Formulario onEnviar={async () => { await api.post('/usuarios', { ...f, telefono: f.telefono || undefined }); setNuevo(false); await cargar(); }} cancelar={() => setNuevo(false)}>{campos(f, setF, true)}</Formulario>
+        <Formulario onEnviar={async () => { await api.post('/usuarios', { ...f, telefono: f.telefono || undefined }); setNuevo(false); await cargar(); }} cancelar={() => setNuevo(false)} exito="Usuario creado">{campos(f, setF, true)}</Formulario>
       </Modal>
       <Modal titulo={`Editar · ${editar?.nombre || ''}`} abierto={Boolean(editar)} cerrar={() => setEditar(null)}>
-        {editar && <Formulario onEnviar={async () => { const { id, email, clave, ...resto } = editar; await api.patch(`/usuarios/${id}`, { nombre: resto.nombre, rol: resto.rol, comision_pct: resto.comision_pct, tope_emisiones_dia: resto.tope_emisiones_dia, tope_demos_semana: resto.tope_demos_semana, telefono: resto.telefono || undefined, clave: clave || undefined }); setEditar(null); await cargar(); }} cancelar={() => setEditar(null)}>{campos(editar, setEditar, false)}</Formulario>}
+        {editar && <Formulario onEnviar={async () => { const { id, email, clave, ...resto } = editar; await api.patch(`/usuarios/${id}`, { nombre: resto.nombre, rol: resto.rol, comision_pct: resto.comision_pct, tope_emisiones_dia: resto.tope_emisiones_dia, tope_demos_semana: resto.tope_demos_semana, telefono: resto.telefono || undefined, clave: clave || undefined }); setEditar(null); await cargar(); }} cancelar={() => setEditar(null)} exito="Usuario actualizado">{campos(editar, setEditar, false)}</Formulario>}
       </Modal>
     </>
   );

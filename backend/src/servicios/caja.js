@@ -1,4 +1,4 @@
-import { obtenerDb, transaccion, ajuste, ahoraSql, hoySql } from '../db.js';
+import { obtenerDb, transaccion, ajuste, ahoraSql, hoyLocal, modZona } from '../db.js';
 import { ErrorHttp, noEncontrado, prohibido } from '../middleware/errores.js';
 import { esGestor } from '../middleware/auth.js';
 import { auditar } from './auditoria.js';
@@ -6,15 +6,16 @@ import { auditar } from './auditoria.js';
 const redondear = (n) => Math.round(n * 100) / 100;
 
 /** Resumen de lo cobrado por un vendedor en una fecha (sin guardar). */
-export function resumenDia(vendedorId, fecha = hoySql()) {
+export function resumenDia(vendedorId, fecha = hoyLocal()) {
   const db = obtenerDb();
+  const z = modZona();
   const pagos = db
     .prepare(
       `SELECT p.id, p.monto, p.metodo, p.estado, p.referencia, p.creado_en, v.numero AS venta_numero, c.nombre AS cliente_nombre
        FROM pagos p JOIN ventas v ON v.id = p.venta_id JOIN clientes c ON c.id = v.cliente_id
-       WHERE p.registrado_por = ? AND date(p.creado_en) = ? AND p.estado != 'rechazado' ORDER BY p.id`
+       WHERE p.registrado_por = ? AND date(p.creado_en, ?) = ? AND p.estado != 'rechazado' ORDER BY p.id`
     )
-    .all(vendedorId, fecha);
+    .all(vendedorId, z, fecha);
   const porMetodo = {};
   let total = 0;
   for (const p of pagos) {
@@ -24,8 +25,8 @@ export function resumenDia(vendedorId, fecha = hoySql()) {
   const enMano = ajuste('metodos_en_mano', 'efectivo').split(',').map((s) => s.trim());
   const aEntregar = enMano.reduce((s, m) => s + (porMetodo[m] || 0), 0);
   const comision = db
-    .prepare("SELECT COALESCE(SUM(monto),0) AS s FROM comisiones WHERE vendedor_id = ? AND date(creado_en) = ? AND estado != 'revertida'")
-    .get(vendedorId, fecha).s;
+    .prepare("SELECT COALESCE(SUM(monto),0) AS s FROM comisiones WHERE vendedor_id = ? AND date(creado_en, ?) = ? AND estado != 'revertida'")
+    .get(vendedorId, z, fecha).s;
   const cierre = db.prepare('SELECT * FROM cierres_caja WHERE vendedor_id = ? AND fecha = ?').get(vendedorId, fecha);
   return {
     fecha, vendedor_id: vendedorId, pagos, por_metodo: porMetodo,
@@ -34,8 +35,8 @@ export function resumenDia(vendedorId, fecha = hoySql()) {
   };
 }
 
-export function cerrarCaja(actor, { fecha = hoySql(), observacion } = {}) {
-  if (fecha > hoySql()) throw new ErrorHttp(422, 'No se puede cerrar una fecha futura');
+export function cerrarCaja(actor, { fecha = hoyLocal(), observacion } = {}) {
+  if (fecha > hoyLocal()) throw new ErrorHttp(422, 'No se puede cerrar una fecha futura');
   const r = resumenDia(actor.id, fecha);
   if (r.cierre) throw new ErrorHttp(409, 'La caja de ese día ya está cerrada');
   const res = obtenerDb()
@@ -91,8 +92,8 @@ export function listarComisiones(usuario, { vendedor_id, estado, desde, hasta } 
   if (!esGestor(usuario)) { condiciones.push('co.vendedor_id = ?'); params.push(usuario.id); }
   else if (vendedor_id) { condiciones.push('co.vendedor_id = ?'); params.push(vendedor_id); }
   if (estado) { condiciones.push('co.estado = ?'); params.push(estado); }
-  if (desde) { condiciones.push('date(co.creado_en) >= ?'); params.push(desde); }
-  if (hasta) { condiciones.push('date(co.creado_en) <= ?'); params.push(hasta); }
+  if (desde) { condiciones.push('date(co.creado_en, ?) >= ?'); params.push(modZona(), desde); }
+  if (hasta) { condiciones.push('date(co.creado_en, ?) <= ?'); params.push(modZona(), hasta); }
   const where = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : '';
   return obtenerDb()
     .prepare(
@@ -107,8 +108,8 @@ export function listarComisiones(usuario, { vendedor_id, estado, desde, hasta } 
 export function crearLiquidacion({ vendedor_id, desde, hasta }, actor) {
   return transaccion((db) => {
     const pendientes = db
-      .prepare("SELECT id, monto FROM comisiones WHERE vendedor_id = ? AND estado = 'devengada' AND liquidacion_id IS NULL AND date(creado_en) BETWEEN ? AND ?")
-      .all(vendedor_id, desde, hasta);
+      .prepare("SELECT id, monto FROM comisiones WHERE vendedor_id = ? AND estado = 'devengada' AND liquidacion_id IS NULL AND date(creado_en, ?) BETWEEN ? AND ?")
+      .all(vendedor_id, modZona(), desde, hasta);
     if (!pendientes.length) throw new ErrorHttp(422, 'No hay comisiones pendientes en ese rango');
     const total = redondear(pendientes.reduce((s, c) => s + c.monto, 0));
     const r = db.prepare('INSERT INTO liquidaciones (vendedor_id, desde, hasta, total, creado_por) VALUES (?, ?, ?, ?, ?)').run(vendedor_id, desde, hasta, total, actor.id);

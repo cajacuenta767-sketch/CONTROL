@@ -55,7 +55,7 @@ export function ClienteDetalle() {
         </Tarjeta>
       </div>
       <Modal titulo="Editar cliente" abierto={editar} cerrar={() => setEditar(false)}>
-        <Formulario onEnviar={async () => { await api.patch(`/clientes/${id}`, { ...f, email: f.email || null, vendedor_id: f.vendedor_id ? Number(f.vendedor_id) : undefined }); setEditar(false); await cargar(); }} cancelar={() => setEditar(false)}>
+        <Formulario onEnviar={async () => { await api.patch(`/clientes/${id}`, { ...f, email: f.email || null, vendedor_id: f.vendedor_id ? Number(f.vendedor_id) : undefined }); setEditar(false); await cargar(); }} cancelar={() => setEditar(false)} exito="Cliente actualizado">
           <Campo etiqueta="Nombre"><input value={f.nombre} onChange={(e) => setF({ ...f, nombre: e.target.value })} required /></Campo>
           <Campo etiqueta="Empresa"><input value={f.empresa} onChange={(e) => setF({ ...f, empresa: e.target.value })} /></Campo>
           <Campo etiqueta="Teléfono"><input value={f.telefono} onChange={(e) => setF({ ...f, telefono: e.target.value })} /></Campo>

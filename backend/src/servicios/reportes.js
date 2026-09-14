@@ -1,4 +1,4 @@
-import { obtenerDb, hoySql, ahoraSql } from '../db.js';
+import { obtenerDb, hoyLocal, ahoraSql, modZona } from '../db.js';
 import { esGestor } from '../middleware/auth.js';
 import { actualizarEstadosPorFecha } from './licencias.js';
 
@@ -8,23 +8,24 @@ const redondear = (n) => Math.round(n * 100) / 100;
 export function resumen(usuario) {
   actualizarEstadosPorFecha();
   const db = obtenerDb();
-  const hoy = hoySql();
+  const hoy = hoyLocal();
   const mes = hoy.slice(0, 7);
+  const z = modZona();
   const propio = !esGestor(usuario);
   const fv = propio ? 'AND v.vendedor_id = ?' : '';
   const fl = propio ? 'AND l.vendedor_id = ?' : '';
   const fc = propio ? 'AND co.vendedor_id = ?' : '';
   const p = propio ? [usuario.id] : [];
 
-  const ventasHoy = db.prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(total),0) AS total FROM ventas v WHERE date(v.creado_en) = ? AND v.estado != 'anulada' ${fv}`).get(hoy, ...p);
-  const ventasMes = db.prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(total),0) AS total FROM ventas v WHERE strftime('%Y-%m', v.creado_en) = ? AND v.estado != 'anulada' ${fv}`).get(mes, ...p);
-  const cobradoHoy = db.prepare(`SELECT COALESCE(SUM(pg.monto),0) AS total FROM pagos pg JOIN ventas v ON v.id = pg.venta_id WHERE pg.estado = 'confirmado' AND date(pg.confirmado_en) = ? ${fv}`).get(hoy, ...p).total;
-  const cobradoMes = db.prepare(`SELECT COALESCE(SUM(pg.monto),0) AS total FROM pagos pg JOIN ventas v ON v.id = pg.venta_id WHERE pg.estado = 'confirmado' AND strftime('%Y-%m', pg.confirmado_en) = ? ${fv}`).get(mes, ...p).total;
+  const ventasHoy = db.prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(total),0) AS total FROM ventas v WHERE date(v.creado_en, ?) = ? AND v.estado != 'anulada' ${fv}`).get(z, hoy, ...p);
+  const ventasMes = db.prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(total),0) AS total FROM ventas v WHERE strftime('%Y-%m', v.creado_en, ?) = ? AND v.estado != 'anulada' ${fv}`).get(z, mes, ...p);
+  const cobradoHoy = db.prepare(`SELECT COALESCE(SUM(pg.monto),0) AS total FROM pagos pg JOIN ventas v ON v.id = pg.venta_id WHERE pg.estado = 'confirmado' AND date(pg.confirmado_en, ?) = ? ${fv}`).get(z, hoy, ...p).total;
+  const cobradoMes = db.prepare(`SELECT COALESCE(SUM(pg.monto),0) AS total FROM pagos pg JOIN ventas v ON v.id = pg.venta_id WHERE pg.estado = 'confirmado' AND strftime('%Y-%m', pg.confirmado_en, ?) = ? ${fv}`).get(z, mes, ...p).total;
   const comisiones = db.prepare(`SELECT
       COALESCE(SUM(CASE WHEN co.estado = 'devengada' THEN co.monto END),0) AS pendiente,
       COALESCE(SUM(CASE WHEN co.estado = 'liquidada' THEN co.monto END),0) AS liquidada,
-      COALESCE(SUM(CASE WHEN co.estado != 'revertida' AND strftime('%Y-%m', co.creado_en) = ? THEN co.monto END),0) AS mes
-     FROM comisiones co WHERE 1=1 ${fc}`).get(mes, ...p);
+      COALESCE(SUM(CASE WHEN co.estado != 'revertida' AND strftime('%Y-%m', co.creado_en, ?) = ? THEN co.monto END),0) AS mes
+     FROM comisiones co WHERE 1=1 ${fc}`).get(z, mes, ...p);
 
   const licenciasPorEstado = Object.fromEntries(
     db.prepare(`SELECT l.estado, COUNT(*) AS n FROM licencias l WHERE 1=1 ${fl} GROUP BY l.estado`).all(...p).map((f) => [f.estado, f.n])
@@ -63,31 +64,31 @@ export function resumen(usuario) {
   if (!propio) {
     salida.equipo = db
       .prepare(`SELECT u.id, u.nombre, u.rol, u.tope_emisiones_dia,
-          (SELECT COUNT(*) FROM ventas v WHERE v.vendedor_id = u.id AND strftime('%Y-%m', v.creado_en) = ? AND v.estado != 'anulada') AS ventas_mes,
-          (SELECT COALESCE(SUM(v.total),0) FROM ventas v WHERE v.vendedor_id = u.id AND strftime('%Y-%m', v.creado_en) = ? AND v.estado = 'pagada') AS vendido_mes,
+          (SELECT COUNT(*) FROM ventas v WHERE v.vendedor_id = u.id AND strftime('%Y-%m', v.creado_en, ?) = ? AND v.estado != 'anulada') AS ventas_mes,
+          (SELECT COALESCE(SUM(v.total),0) FROM ventas v WHERE v.vendedor_id = u.id AND strftime('%Y-%m', v.creado_en, ?) = ? AND v.estado = 'pagada') AS vendido_mes,
           (SELECT COALESCE(SUM(co.monto),0) FROM comisiones co WHERE co.vendedor_id = u.id AND co.estado = 'devengada') AS comision_pendiente,
-          (SELECT COUNT(*) FROM licencias l WHERE l.emitida_por = u.id AND date(l.creado_en) = ?) AS emitidas_hoy,
+          (SELECT COUNT(*) FROM licencias l WHERE l.emitida_por = u.id AND date(l.creado_en, ?) = ?) AS emitidas_hoy,
           (SELECT COUNT(*) FROM licencias l JOIN planes pl ON pl.id = l.plan_id WHERE l.emitida_por = u.id AND pl.tipo = 'demo' AND l.creado_en >= datetime('now','-7 days')) AS demos_semana
         FROM usuarios u WHERE u.activo = 1 ORDER BY vendido_mes DESC`)
-      .all(mes, mes, hoy);
+      .all(z, mes, z, mes, z, hoy);
     salida.alertas = {
       activaciones_rechazadas_24h: db.prepare("SELECT COUNT(*) AS n FROM auditoria WHERE accion = 'activacion.rechazada' AND creado_en >= datetime('now','-1 day')").get().n,
       cierres_por_aprobar: db.prepare("SELECT COUNT(*) AS n FROM cierres_caja WHERE estado = 'cerrado'").get().n,
       pagos_por_confirmar: pagosPendientes.length,
       sin_cierre_hoy: db
         .prepare(`SELECT u.nombre FROM usuarios u WHERE u.activo = 1 AND u.rol = 'vendedor'
-          AND EXISTS (SELECT 1 FROM pagos p WHERE p.registrado_por = u.id AND date(p.creado_en) = ? AND p.estado != 'rechazado')
+          AND EXISTS (SELECT 1 FROM pagos p WHERE p.registrado_por = u.id AND date(p.creado_en, ?) = ? AND p.estado != 'rechazado')
           AND NOT EXISTS (SELECT 1 FROM cierres_caja c WHERE c.vendedor_id = u.id AND c.fecha = ?)`)
-        .all(hoy, hoy).map((f) => f.nombre),
+        .all(z, hoy, hoy).map((f) => f.nombre),
       sobre_tope: salida.equipo.filter((u) => u.rol !== 'superadmin' && u.emitidas_hoy > u.tope_emisiones_dia).map((u) => u.nombre),
       instalaciones_sin_latido_7d: db
         .prepare("SELECT COUNT(*) AS n FROM activaciones a JOIN licencias l ON l.id = a.licencia_id WHERE a.activa = 1 AND l.estado IN ('activa','mora') AND a.ultimo_latido < datetime('now','-7 days')")
         .get().n,
     };
     salida.ventas_por_dia = db
-      .prepare(`SELECT date(pg.confirmado_en) AS dia, COALESCE(SUM(pg.monto),0) AS total FROM pagos pg
+      .prepare(`SELECT date(pg.confirmado_en, ?) AS dia, COALESCE(SUM(pg.monto),0) AS total FROM pagos pg
         WHERE pg.estado = 'confirmado' AND pg.confirmado_en >= datetime('now','-30 days') GROUP BY dia ORDER BY dia`)
-      .all();
+      .all(z);
   }
   return salida;
 }

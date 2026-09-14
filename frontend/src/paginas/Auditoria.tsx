@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api, fecha } from '../api';
 import { Tabla, Tarjeta } from '../componentes/ui';
 
 export function Auditoria() {
   const [datos, setDatos] = useState<{ filas: any[]; total: number; pagina: number; porPagina: number } | null>(null);
-  const [accion, setAccion] = useState('');
+  const [params] = useSearchParams();
+  const [accion, setAccion] = useState(params.get('accion') || '');
   const [pagina, setPagina] = useState(1);
   useEffect(() => { api.get<any>('/auditoria', { accion: accion || undefined, pagina, por_pagina: 50 }).then(setDatos); }, [accion, pagina]);
   const paginas = datos ? Math.max(1, Math.ceil(datos.total / datos.porPagina)) : 1;
