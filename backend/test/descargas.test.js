@@ -7,11 +7,12 @@ import { crearApp } from '../src/app.js';
 import { obtenerDb, reiniciarDb, guardarAjuste } from '../src/db.js';
 import { crearUsuario } from '../src/servicios/usuarios.js';
 import { DIR_DESCARGAS } from '../src/servicios/descargas.js';
+import { obtenerClaves } from '../src/firmas.js';
 
 let app, tokenS, tokenV;
 const CLAVE = 'ClaveSegura2026';
 before(async () => {
-  reiniciarDb(); obtenerDb(); app = crearApp();
+  reiniciarDb(); obtenerDb(); obtenerClaves(); app = crearApp();
   crearUsuario({ email: 'dueno@test.com', nombre: 'Dueño', clave: CLAVE, rol: 'superadmin' });
   crearUsuario({ email: 'vende@test.com', nombre: 'Vendedor', clave: CLAVE, rol: 'vendedor' });
   obtenerDb().prepare('UPDATE usuarios SET debe_cambiar_clave = 0').run();

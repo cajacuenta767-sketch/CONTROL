@@ -24,7 +24,21 @@ dispositivo. Desde ahí todo es el mismo panel, con los mismos usuarios y permis
 - **URL externa**: si prefieres no alojarlos, pega la URL del archivo en el Release de GitHub.
 - **Versión**: el número que ve el visitante.
 
-## Generar los instaladores (una vez, y cada vez que cambies la app)
+## Instaladores ya publicados
+
+La primera versión ya está compilada y publicada en
+[Release apps-v1.0.0](https://github.com/cajacuenta767-sketch/CONTROL/releases/tag/apps-v1.0.0):
+
+| Archivo | Tamaño |
+|---|---|
+| `CONTROL-android.apk` (firma de depuración) | 3,9 MB |
+| `CONTROL-Instalador-1.0.0.exe` (instalador de un clic) | 80 MB |
+| `CONTROL-Portable-1.0.0.exe` (sin instalación) | 80 MB |
+
+El seed deja esas URLs en Ajustes › Aplicaciones, así la página `/descargar` ya ofrece las
+tres descargas en una instalación nueva.
+
+## Generar los instaladores (cada vez que cambies la app)
 
 1. En GitHub: **Actions › Apps (Windows y Android) › Run workflow**, escribe la versión
    (por ejemplo `1.0.0`). También se dispara al crear una etiqueta `apps-v1.0.0`.

@@ -5,7 +5,7 @@
  *   npm run seed
  *   SUPERADMIN_EMAIL=tu@correo.com SUPERADMIN_CLAVE=TuClaveSegura npm run seed
  */
-import { obtenerDb } from '../src/db.js';
+import { obtenerDb, guardarAjuste } from '../src/db.js';
 import { obtenerClaves } from '../src/firmas.js';
 import { crearUsuario } from '../src/servicios/usuarios.js';
 import { crearProducto, crearPlan } from '../src/servicios/catalogo.js';
@@ -61,6 +61,13 @@ for (const [codigo, nombre, descripcion, mensual, anual, vitalicio, sucursal] of
   };
 }
 console.log(`Catálogo: ${catalogo.length} productos con 6 planes cada uno.`);
+
+// Instaladores publicados por el flujo "Apps" de GitHub Actions (se pueden cambiar en Ajustes › Aplicaciones).
+const RELEASE = 'https://github.com/cajacuenta767-sketch/CONTROL/releases/download/apps-v1.0.0';
+guardarAjuste('descarga_version', '1.0.0');
+guardarAjuste('descarga_android_url', `${RELEASE}/CONTROL-android.apk`);
+guardarAjuste('descarga_windows_url', `${RELEASE}/CONTROL-Instalador-1.0.0.exe`);
+guardarAjuste('descarga_windows_portable_url', `${RELEASE}/CONTROL-Portable-1.0.0.exe`);
 
 if (!soloDemo) {
   const admin = crearUsuario({ email: 'admin@agencia.test', nombre: 'Ana Admin', clave: 'Control2026!', rol: 'admin', tope_emisiones_dia: 30 }, superadmin);

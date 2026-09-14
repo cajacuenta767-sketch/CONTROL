@@ -85,9 +85,9 @@ chequeo responde error si la base de datos falla o las tareas automáticas se de
 
 ## 9. Apps para celular y PC
 
-1. En GitHub: **Actions › Apps (Windows y Android) › Run workflow** con la versión `1.0.0`.
-2. Cuando termine, en **Ajustes › Aplicaciones** sube el `.exe` y el `.apk` del Release (o pega sus URLs).
-3. Comparte `https://TU-DOMINIO/descargar` con tu equipo.
+1. Ya están compilados: [Release apps-v1.0.0](https://github.com/cajacuenta767-sketch/CONTROL/releases/tag/apps-v1.0.0) (APK de Android, instalador y portable de Windows). El seed los deja enlazados en **Ajustes › Aplicaciones**.
+2. Comparte `https://TU-DOMINIO/descargar` con tu equipo.
+3. Para versiones nuevas: **Actions › Apps (Windows y Android) › Run workflow** y actualiza las URLs.
 
 Opcional: keystore de Android (para firmar como release) y certificado de firma de código
 de Windows (para evitar el aviso de SmartScreen). Detalle en `docs/07-apps-movil-y-escritorio.md`.
