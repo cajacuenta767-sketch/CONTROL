@@ -8,7 +8,7 @@ import { AccionConMotivo, Aviso, BotonAccion, BotonWhatsApp, Campo, Cargando, Cl
 
 export function VentaDetalle() {
   const { id } = useParams();
-  const { esGestor, esSuper } = useSesion();
+  const { esGestor, esSuper, usuario } = useSesion();
   const ajustes = useAjustes();
   const avisar = useAvisar();
   const [v, setV] = useState<any | null>(null);
@@ -17,6 +17,9 @@ export function VentaDetalle() {
   const [archivo, setArchivo] = useState<File | null>(null);
   const [pasarelas, setPasarelas] = useState<Record<string, boolean>>({});
   const [enlaceAbierto, setEnlaceAbierto] = useState(false);
+  const [facturar, setFacturar] = useState<any | null>(null);
+  const [factInfo, setFactInfo] = useState<any | null>(null);
+  useEffect(() => { api.get<any>(`/ventas/${id}/comprobantes`).then(setFactInfo).catch(() => null); }, [id, v?.comprobantes?.length]);
   const [proveedor, setProveedor] = useState('demo');
   const cargar = useCallback(() => api.get<any>(`/ventas/${id}`).then(setV), [id]);
   useEffect(() => { cargar(); api.get<Record<string, boolean>>('/ventas/pasarelas').then(setPasarelas); }, [cargar]);
@@ -51,6 +54,7 @@ export function VentaDetalle() {
         <div><h1>Venta {v.numero} <Estado valor={v.estado} /></h1><p>{fecha(v.creado_en, true)} · vendedor {v.vendedor_nombre}{v.vendedor_rol === 'revendedor' && <> · <Estado valor="revendedor" /> {v.marca_nombre}</>}</p></div>
         <div className="fila">
           <BotonAccion texto="Recibo PDF" className="btn secundario" onClick={() => api.abrir(`/ventas/${id}/recibo.pdf`)} />
+          {factInfo?.activa && ['superadmin', 'admin', 'contador'].includes(usuario!.rol) && v.estado !== 'anulada' && v.total > 0 && !v.comprobantes?.some((c: any) => ['aceptado', 'pendiente'].includes(c.estado)) && <button className="btn secundario" onClick={() => setFacturar({ tipo: v.cliente_documento_tipo === 'RUC' ? 'factura' : 'boleta', documento_tipo: v.cliente_documento_tipo || 'DNI', documento: v.cliente_documento || '', razon_social: v.cliente_razon_social || v.cliente_nombre, direccion: v.cliente_direccion || '' })}>Emitir boleta / factura</button>}
           {v.estado === 'pagada' && activas.length > 0 && <BotonWhatsApp telefono={v.cliente_telefono} texto={mensajeClaves} etiqueta="Enviar claves por WhatsApp" className="btn secundario" />}
           {v.estado === 'pendiente' && pendienteReal > 0 && <BotonWhatsApp telefono={v.cliente_telefono} texto={mensajeCobro} etiqueta="Recordar cobro" className="btn secundario" />}
           {v.estado === 'pendiente' && pendienteReal > 0 && proveedoresActivos.length > 0 && <button className="btn secundario" onClick={() => { setProveedor(proveedoresActivos[0]); setEnlaceAbierto(true); }}>Enlace de pago</button>}
@@ -122,6 +126,18 @@ export function VentaDetalle() {
           ]} />
         </Tarjeta>
 
+        {v.comprobantes?.length > 0 && (
+          <Tarjeta titulo="Comprobantes electrónicos">
+            <Tabla filas={v.comprobantes} clave={(c: any) => c.id} columnas={[
+              { titulo: 'Comprobante', celda: (c: any) => <><strong>{c.serie}-{c.numero}</strong> <span className="suave pequeno">{c.tipo}</span></> },
+              { titulo: 'Fecha', celda: (c: any) => fecha(c.creado_en, true) },
+              { titulo: 'Total', celda: (c: any) => <>{dinero(c.total, v.moneda)} <span className="suave pequeno">IGV {dinero(c.igv, v.moneda)}</span></>, alinear: 'derecha' },
+              { titulo: 'Estado', celda: (c: any) => <Estado valor={c.estado === 'aceptado' ? 'confirmado' : c.estado === 'anulado' ? 'anulada' : c.estado === 'error' || c.estado === 'rechazado' ? 'rechazado' : 'pendiente'} /> },
+              { titulo: '', celda: (c: any) => c.enlace_pdf ? <a className="btn secundario chico" href={c.enlace_pdf} target="_blank" rel="noreferrer">PDF</a> : null },
+            ]} />
+          </Tarjeta>
+        )}
+
         {v.enlaces_pago?.length > 0 && (
           <Tarjeta titulo="Enlaces de pago">
             <Tabla filas={v.enlaces_pago} clave={(e: any) => e.id} columnas={[
@@ -147,6 +163,22 @@ export function VentaDetalle() {
           <Campo etiqueta="Referencia / n.º de operación"><input value={pago.referencia} onChange={(e) => setPago({ ...pago, referencia: e.target.value })} /></Campo>
           <Campo etiqueta="Comprobante (foto o PDF, máx. 5 MB)"><input type="file" accept="image/*,application/pdf" onChange={(e) => setArchivo(e.target.files?.[0] || null)} /></Campo>
         </Formulario>
+      </Modal>
+
+      <Modal titulo="Emitir comprobante electrónico" abierto={!!facturar} cerrar={() => setFacturar(null)}>
+        {facturar && (
+          <Formulario textoBoton={`Emitir ${facturar.tipo}`} cancelar={() => setFacturar(null)} exito="Comprobante emitido" onEnviar={async () => { const r = await api.post<any>(`/ventas/${id}/comprobantes`, { tipo: facturar.tipo, cliente: { documento_tipo: facturar.documento_tipo, documento: facturar.documento || undefined, razon_social: facturar.razon_social || undefined, direccion: facturar.direccion || undefined } }); setFacturar(null); await cargar(); if (r.estado === 'error' || r.estado === 'rechazado') avisar(`El proveedor rechazó el comprobante: ${r.error || 'revisa Contabilidad'}`, 'error'); }}>
+            {factInfo?.desglose && <Aviso tipo="info">Total {dinero(factInfo.desglose.total, v.moneda)} = base {dinero(factInfo.desglose.base, v.moneda)} + IGV {factInfo.desglose.pct}% {dinero(factInfo.desglose.igv, v.moneda)}.</Aviso>}
+            <Campo etiqueta="Tipo"><div className="chips"><button type="button" className={`chip ${facturar.tipo === 'boleta' ? 'activo' : ''}`} onClick={() => setFacturar({ ...facturar, tipo: 'boleta' })}>Boleta</button><button type="button" className={`chip ${facturar.tipo === 'factura' ? 'activo' : ''}`} onClick={() => setFacturar({ ...facturar, tipo: 'factura', documento_tipo: 'RUC' })}>Factura (requiere RUC)</button></div></Campo>
+            <div className="fila">
+              <Campo etiqueta="Documento"><select value={facturar.documento_tipo} onChange={(e) => setFacturar({ ...facturar, documento_tipo: e.target.value })}>{['RUC', 'DNI', 'CE', 'NIT', 'OTRO'].map((t) => <option key={t} value={t}>{t}</option>)}</select></Campo>
+              <Campo etiqueta="Número"><input value={facturar.documento} onChange={(e) => setFacturar({ ...facturar, documento: e.target.value })} required={facturar.tipo === 'factura'} /></Campo>
+            </div>
+            <Campo etiqueta={facturar.tipo === 'factura' ? 'Razón social' : 'Nombre'}><input value={facturar.razon_social} onChange={(e) => setFacturar({ ...facturar, razon_social: e.target.value })} required /></Campo>
+            <Campo etiqueta="Dirección"><input value={facturar.direccion} onChange={(e) => setFacturar({ ...facturar, direccion: e.target.value })} /></Campo>
+            <p className="suave pequeno">Los datos se guardan en la ficha del cliente para la próxima vez.</p>
+          </Formulario>
+        )}
       </Modal>
 
       <Modal titulo="Crear enlace de pago" abierto={enlaceAbierto} cerrar={() => setEnlaceAbierto(false)}>

@@ -12,7 +12,7 @@ import { rutasAuth } from './rutas/auth.rutas.js';
 import { rutasUsuarios } from './rutas/usuarios.rutas.js';
 import { rutasProductos, rutasPlanes } from './rutas/catalogo.rutas.js';
 import { rutasClientes } from './rutas/clientes.rutas.js';
-import { rutasVentas, rutasPagos } from './rutas/ventas.rutas.js';
+import { rutasVentas, rutasPagos, rutasComprobantes } from './rutas/ventas.rutas.js';
 import { rutasLicencias, rutasLicenciasPublicas } from './rutas/licencias.rutas.js';
 import { rutasCaja, rutasComisiones, rutasLiquidaciones } from './rutas/caja.rutas.js';
 import { rutasReportes, rutasAuditoria, rutasAjustes, rutasCorreos, rutasErrores, rutasSistema, rutasRenovaciones } from './rutas/sistema.rutas.js';
@@ -48,6 +48,7 @@ export function crearApp() {
   app.use('/api/v1/clientes', rutasClientes);
   app.use('/api/v1/ventas', rutasVentas);
   app.use('/api/v1/pagos', rutasPagos);
+  app.use('/api/v1/comprobantes', rutasComprobantes);
   app.use('/api/v1/licencias', rutasLicenciasPublicas); // /activar, /latido, /clave-publica
   app.use('/api/v1/licencias', rutasLicencias);
   app.use('/api/v1/caja', rutasCaja);

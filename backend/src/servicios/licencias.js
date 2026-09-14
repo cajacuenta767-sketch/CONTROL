@@ -1,6 +1,6 @@
 import { obtenerDb, transaccion, ajusteNumero, ahoraSql } from '../db.js';
 import { ErrorHttp, noEncontrado, prohibido } from '../middleware/errores.js';
-import { esGestor } from '../middleware/auth.js';
+import { veTodo } from '../middleware/auth.js';
 import { auditar } from './auditoria.js';
 import { alertarDuenoSinEsperar } from './mensajeria.js';
 import { tokenParaLicencia, firmarToken } from '../firmas.js';
@@ -47,7 +47,7 @@ export function listarLicencias(usuario, filtros = {}) {
   actualizarEstadosPorFecha();
   const condiciones = [];
   const params = [];
-  if (!esGestor(usuario)) { condiciones.push('l.vendedor_id = ?'); params.push(usuario.id); }
+  if (!veTodo(usuario)) { condiciones.push('l.vendedor_id = ?'); params.push(usuario.id); }
   else if (filtros.vendedor_id) { condiciones.push('l.vendedor_id = ?'); params.push(filtros.vendedor_id); }
   if (filtros.estado) { condiciones.push('l.estado = ?'); params.push(filtros.estado); }
   if (filtros.producto_id) { condiciones.push('l.producto_id = ?'); params.push(filtros.producto_id); }
@@ -59,7 +59,7 @@ export function listarLicencias(usuario, filtros = {}) {
   if (filtros.pagina) {
     const porPagina = Math.min(200, Number(filtros.por_pagina) || 50);
     const total = db.prepare(`SELECT COUNT(*) AS c FROM licencias l JOIN clientes c ON c.id = l.cliente_id ${where}`).get(...params).c;
-    const conteo = Object.fromEntries(db.prepare(`SELECT l.estado, COUNT(*) AS n FROM licencias l ${!esGestor(usuario) ? 'WHERE l.vendedor_id = ?' : ''} GROUP BY l.estado`).all(...(!esGestor(usuario) ? [usuario.id] : [])).map((f) => [f.estado, f.n]));
+    const conteo = Object.fromEntries(db.prepare(`SELECT l.estado, COUNT(*) AS n FROM licencias l ${!veTodo(usuario) ? 'WHERE l.vendedor_id = ?' : ''} GROUP BY l.estado`).all(...(!veTodo(usuario) ? [usuario.id] : [])).map((f) => [f.estado, f.n]));
     const filas = db.prepare(`${BASE} ${where} ORDER BY l.id DESC LIMIT ? OFFSET ?`).all(...params, porPagina, (Number(filtros.pagina) - 1) * porPagina);
     return { filas, total, pagina: Number(filtros.pagina), por_pagina: porPagina, conteo };
   }
@@ -70,7 +70,7 @@ export function obtenerLicencia(id, usuario) {
   const db = obtenerDb();
   const l = db.prepare(`${BASE} WHERE l.id = ?`).get(id);
   if (!l) throw noEncontrado('Licencia no encontrada');
-  if (usuario && !esGestor(usuario) && l.vendedor_id !== usuario.id) throw prohibido('Esta licencia es de otro vendedor');
+  if (usuario && !veTodo(usuario) && l.vendedor_id !== usuario.id) throw prohibido('Esta licencia es de otro vendedor');
   l.activaciones = db.prepare('SELECT * FROM activaciones WHERE licencia_id = ? ORDER BY id DESC').all(id)
     .map((a) => ({ ...a, desactualizada: Boolean(l.producto_version_actual && a.version && a.version !== l.producto_version_actual) }));
   l.codigos_emergencia = db.prepare('SELECT ce.id, ce.huella, ce.expira_en, ce.motivo, ce.creado_en, u.nombre AS creado_por_nombre FROM codigos_emergencia ce LEFT JOIN usuarios u ON u.id = ce.creado_por WHERE ce.licencia_id = ? ORDER BY ce.id DESC LIMIT 20').all(id);

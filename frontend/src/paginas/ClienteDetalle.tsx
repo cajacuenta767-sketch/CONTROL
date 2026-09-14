@@ -19,7 +19,7 @@ export function ClienteDetalle() {
   const [salud, setSalud] = useState<any | null>(null);
   useEffect(() => { api.get<any>(`/clientes/${id}/salud`).then(setSalud).catch(() => null); }, [id]);
   useEffect(() => { api.get<any[]>(`/clientes/${id}/historial`).then(setHistorial).catch(() => setHistorial([])); }, [id]);
-  const cargar = useCallback(() => api.get<any>(`/clientes/${id}`).then((x) => { setC(x); setF({ nombre: x.nombre, empresa: x.empresa || '', telefono: x.telefono || '', email: x.email || '', pais: x.pais || '', notas: x.notas || '', vendedor_id: x.vendedor_id || '' }); }), [id]);
+  const cargar = useCallback(() => api.get<any>(`/clientes/${id}`).then((x) => { setC(x); setF({ nombre: x.nombre, empresa: x.empresa || '', telefono: x.telefono || '', email: x.email || '', pais: x.pais || '', notas: x.notas || '', vendedor_id: x.vendedor_id || '', documento_tipo: x.documento_tipo || '', documento: x.documento || '', razon_social: x.razon_social || '', direccion: x.direccion || '' }); }), [id]);
   useEffect(() => { cargar(); }, [cargar]);
   useEffect(() => { if (esGestor) api.get<any[]>('/usuarios').then(setEquipo); }, [esGestor]);
   if (!c) return <Cargando />;
@@ -44,6 +44,7 @@ export function ClienteDetalle() {
             <dt>Moneda</dt><dd>{c.moneda}</dd>
             <dt>Notas</dt><dd>{c.notas || '—'}</dd>
             <dt>Alta</dt><dd>{fecha(c.creado_en)}</dd>
+            <dt>Datos fiscales</dt><dd>{c.documento ? <>{c.documento_tipo} {c.documento}{c.razon_social && <> · {c.razon_social}</>}{c.direccion && <div className="suave pequeno">{c.direccion}</div>}</> : <span className="suave">sin documento (para factura hace falta RUC)</span>}</dd>
           </dl>
         </Tarjeta>
         <Tarjeta titulo={`Licencias (${c.licencias.length})`}>
@@ -78,13 +79,19 @@ export function ClienteDetalle() {
         </Tarjeta>
       </div>
       <Modal titulo="Editar cliente" abierto={editar} cerrar={() => setEditar(false)}>
-        <Formulario onEnviar={async () => { await api.patch(`/clientes/${id}`, { ...f, email: f.email || null, vendedor_id: f.vendedor_id ? Number(f.vendedor_id) : undefined }); setEditar(false); await cargar(); }} cancelar={() => setEditar(false)} exito="Cliente actualizado">
+        <Formulario onEnviar={async () => { await api.patch(`/clientes/${id}`, { ...f, email: f.email || null, documento_tipo: f.documento_tipo || null, documento: f.documento || null, razon_social: f.razon_social || null, direccion: f.direccion || null, vendedor_id: f.vendedor_id ? Number(f.vendedor_id) : undefined }); setEditar(false); await cargar(); }} cancelar={() => setEditar(false)} exito="Cliente actualizado">
           <Campo etiqueta="Nombre"><input value={f.nombre} onChange={(e) => setF({ ...f, nombre: e.target.value })} required /></Campo>
           <Campo etiqueta="Empresa"><input value={f.empresa} onChange={(e) => setF({ ...f, empresa: e.target.value })} /></Campo>
           <Campo etiqueta="Teléfono"><input value={f.telefono} onChange={(e) => setF({ ...f, telefono: e.target.value })} /></Campo>
           <Campo etiqueta="Correo"><input type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></Campo>
           <Campo etiqueta="País"><input value={f.pais} onChange={(e) => setF({ ...f, pais: e.target.value })} /></Campo>
           <Campo etiqueta="Notas"><textarea rows={2} value={f.notas} onChange={(e) => setF({ ...f, notas: e.target.value })} /></Campo>
+          <div className="fila">
+            <Campo etiqueta="Tipo de documento"><select value={f.documento_tipo} onChange={(e) => setF({ ...f, documento_tipo: e.target.value })}><option value="">—</option>{['RUC', 'DNI', 'CE', 'NIT', 'OTRO'].map((t) => <option key={t} value={t}>{t}</option>)}</select></Campo>
+            <Campo etiqueta="Número"><input value={f.documento} onChange={(e) => setF({ ...f, documento: e.target.value })} /></Campo>
+          </div>
+          <Campo etiqueta="Razón social (para factura)"><input value={f.razon_social} onChange={(e) => setF({ ...f, razon_social: e.target.value })} /></Campo>
+          <Campo etiqueta="Dirección fiscal"><input value={f.direccion} onChange={(e) => setF({ ...f, direccion: e.target.value })} /></Campo>
           {esGestor && <Campo etiqueta="Vendedor asignado"><select value={f.vendedor_id} onChange={(e) => setF({ ...f, vendedor_id: e.target.value })}><option value="">—</option>{equipo.map((u) => <option key={u.id} value={u.id}>{u.nombre}</option>)}</select></Campo>}
         </Formulario>
       </Modal>

@@ -10,6 +10,7 @@ import { asincrono, ErrorHttp } from '../middleware/errores.js';
 import { crearVenta, listarVentas, obtenerVenta, registrarPago, confirmarPago, rechazarPago, anularVenta, adjuntarComprobante, obtenerPago } from '../servicios/ventas.js';
 import { crearEnlace, proveedoresDisponibles } from '../servicios/pagos_en_linea.js';
 import { alertarDuenoSinEsperar } from '../servicios/mensajeria.js';
+import { emitirComprobante, anularComprobante, listarComprobantes, facturarAutomatico, facturacionActiva, desglosarIgv } from '../servicios/facturacion.js';
 import { reciboVenta, reciboPago } from '../servicios/documentos.js';
 
 export const DIR_COMPROBANTES = resolve(dirname(fileURLToPath(import.meta.url)), '../../datos/comprobantes');
@@ -73,7 +74,11 @@ rutasVentas.post(
 
 export const rutasPagos = Router();
 rutasPagos.use(requerirAuth);
-rutasPagos.post('/:id/confirmar', requerirRol('superadmin', 'admin'), asincrono((req, res) => res.json(confirmarPago(Number(req.params.id), req.usuario))));
+rutasPagos.post('/:id/confirmar', requerirRol('superadmin', 'admin'), asincrono(async (req, res) => {
+  const v = confirmarPago(Number(req.params.id), req.usuario);
+  await facturarAutomatico(v.id, Number(req.params.id));
+  res.json(obtenerVenta(v.id, req.usuario));
+}));
 rutasPagos.post(
   '/:id/rechazar',
   requerirRol('superadmin', 'admin'),
@@ -93,3 +98,17 @@ rutasPagos.get('/:id/comprobante', asincrono((req, res) => {
   if (!ruta.startsWith(DIR_COMPROBANTES) || !existsSync(ruta)) throw new ErrorHttp(404, 'Archivo no encontrado');
   res.sendFile(ruta);
 }));
+
+/* ---------- Facturación electrónica ---------- */
+const esquemaComprobante = z.object({
+  tipo: z.enum(['boleta', 'factura']).optional(),
+  pago_id: z.number().int().optional(),
+  cliente: z.object({ documento_tipo: z.enum(['RUC', 'DNI', 'CE', 'NIT', 'OTRO']).optional(), documento: z.string().max(20).optional(), razon_social: z.string().max(160).optional(), direccion: z.string().max(200).optional() }).optional(),
+});
+rutasVentas.get('/:id/comprobantes', asincrono((req, res) => { obtenerVenta(Number(req.params.id), req.usuario); res.json({ activa: facturacionActiva(), desglose: desglosarIgv(obtenerVenta(Number(req.params.id)).total), comprobantes: listarComprobantes({ venta_id: Number(req.params.id) }) }); }));
+rutasVentas.post('/:id/comprobantes', requerirRol('superadmin', 'admin', 'contador'), validar(esquemaComprobante), asincrono(async (req, res) => { obtenerVenta(Number(req.params.id), req.usuario); res.status(201).json(await emitirComprobante(Number(req.params.id), req.datos, req.usuario)); }));
+
+export const rutasComprobantes = Router();
+rutasComprobantes.use(requerirAuth, requerirRol('superadmin', 'admin', 'contador'));
+rutasComprobantes.get('/', asincrono((req, res) => res.json(listarComprobantes({ mes: req.query.mes }))));
+rutasComprobantes.post('/:id/anular', requerirRol('superadmin', 'contador'), validar(z.object({ motivo: z.string().min(3).max(200) })), asincrono(async (req, res) => res.json(await anularComprobante(Number(req.params.id), req.datos.motivo, req.usuario))));

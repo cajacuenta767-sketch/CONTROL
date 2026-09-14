@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { obtenerDb, transaccion, ajuste, ajusteNumero, ahoraSql, modZona, hoyLocal } from '../db.js';
 import { ErrorHttp, noEncontrado, prohibido } from '../middleware/errores.js';
-import { esGestor, esSuperadmin, esRevendedor } from '../middleware/auth.js';
+import { esGestor, esSuperadmin, esRevendedor, veTodo, puedeVender } from '../middleware/auth.js';
 import { auditar } from './auditoria.js';
 import { obtenerPlan } from './catalogo.js';
 import { obtenerCliente } from './clientes.js';
@@ -31,7 +31,7 @@ export function tipoCambioDe(moneda) {
   return tc;
 }
 
-const VENTA_BASE = `SELECT v.*, c.nombre AS cliente_nombre, c.empresa AS cliente_empresa, c.telefono AS cliente_telefono, c.email AS cliente_email,
+const VENTA_BASE = `SELECT v.*, c.nombre AS cliente_nombre, c.empresa AS cliente_empresa, c.telefono AS cliente_telefono, c.email AS cliente_email, c.documento_tipo AS cliente_documento_tipo, c.documento AS cliente_documento, c.razon_social AS cliente_razon_social, c.direccion AS cliente_direccion,
   u.nombre AS vendedor_nombre, u.rol AS vendedor_rol, u.marca_nombre AS marca_nombre,
   pr.nombre AS producto_nombre, pr.codigo AS producto_codigo,
   pl.nombre AS plan_nombre, pl.tipo AS plan_tipo,
@@ -50,6 +50,7 @@ const VENTA_BASE = `SELECT v.*, c.nombre AS cliente_nombre, c.empresa AS cliente
  * Un revendedor compra a precio mayorista; si tiene cupo prepagado la venta se confirma sola.
  */
 export function crearVenta(datos, actor, { origen = null } = {}) {
+  if (!puedeVender(actor)) throw prohibido('Tu rol no registra ventas');
   const plan = obtenerPlan(datos.plan_id);
   if (!plan.activo) throw new ErrorHttp(422, 'El plan no está activo');
   const cliente = obtenerCliente(datos.cliente_id, actor);
@@ -157,7 +158,7 @@ export function crearVenta(datos, actor, { origen = null } = {}) {
 export function listarVentas(usuario, { estado, vendedor_id, cliente_id, desde, hasta, q, pagina, por_pagina } = {}) {
   const condiciones = [];
   const params = [];
-  if (!esGestor(usuario)) { condiciones.push('v.vendedor_id = ?'); params.push(usuario.id); }
+  if (!veTodo(usuario)) { condiciones.push('v.vendedor_id = ?'); params.push(usuario.id); }
   else if (vendedor_id) { condiciones.push('v.vendedor_id = ?'); params.push(vendedor_id); }
   if (estado) { condiciones.push('v.estado = ?'); params.push(estado); }
   if (cliente_id) { condiciones.push('v.cliente_id = ?'); params.push(cliente_id); }
@@ -179,7 +180,7 @@ export function obtenerVenta(id, usuario) {
   const db = obtenerDb();
   const v = db.prepare(`${VENTA_BASE} WHERE v.id = ?`).get(id);
   if (!v) throw noEncontrado('Venta no encontrada');
-  if (usuario && !esGestor(usuario) && v.vendedor_id !== usuario.id) throw prohibido('Esta venta es de otro vendedor');
+  if (usuario && !veTodo(usuario) && v.vendedor_id !== usuario.id) throw prohibido('Esta venta es de otro vendedor');
   v.pagos = db
     .prepare(
       `SELECT p.*, r.nombre AS registrado_por_nombre, c.nombre AS confirmado_por_nombre
@@ -192,6 +193,7 @@ export function obtenerVenta(id, usuario) {
   v.comisiones = db.prepare('SELECT * FROM comisiones WHERE venta_id = ? ORDER BY id').all(id);
   v.enlaces_pago = db.prepare('SELECT id, proveedor, url, monto, moneda, estado, creado_en, pagado_en FROM enlaces_pago WHERE venta_id = ? ORDER BY id DESC').all(id);
   v.cuotas_detalle = v.cuotas > 1 ? db.prepare('SELECT * FROM cuotas WHERE venta_id = ? ORDER BY numero').all(v.id) : [];
+  v.comprobantes = db.prepare('SELECT id, tipo, serie, numero, estado, total, igv, enlace_pdf, creado_en FROM comprobantes_fiscales WHERE venta_id = ? ORDER BY id DESC').all(v.id);
   v.saldo = redondear(v.total - v.pagado);
   v.moneda_base = ajuste('moneda_base', 'USD');
   return v;
@@ -199,6 +201,7 @@ export function obtenerVenta(id, usuario) {
 
 /** El vendedor registra un cobro. Queda pendiente hasta que un gestor lo confirma. */
 export function registrarPago(ventaId, datos, actor) {
+  if (!puedeVender(actor)) throw prohibido('Tu rol no registra cobros');
   const v = obtenerVenta(ventaId, actor);
   if (v.estado === 'anulada') throw new ErrorHttp(422, 'La venta está anulada');
   if (v.total === 0) throw new ErrorHttp(422, 'Esta venta no requiere cobro');
@@ -344,7 +347,7 @@ export function adjuntarComprobante(pagoId, rutaArchivo, actor) {
 export function obtenerPago(pagoId, usuario) {
   const pago = obtenerDb().prepare('SELECT p.*, v.vendedor_id, v.numero AS venta_numero FROM pagos p JOIN ventas v ON v.id = p.venta_id WHERE p.id = ?').get(pagoId);
   if (!pago) throw noEncontrado('Pago no encontrado');
-  if (usuario && !esGestor(usuario) && pago.vendedor_id !== usuario.id && pago.registrado_por !== usuario.id) throw prohibido();
+  if (usuario && !veTodo(usuario) && pago.vendedor_id !== usuario.id && pago.registrado_por !== usuario.id) throw prohibido();
   return pago;
 }
 

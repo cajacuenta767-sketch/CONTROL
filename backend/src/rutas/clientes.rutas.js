@@ -20,6 +20,10 @@ const esquema = z.object({
   moneda: z.string().length(3).optional(),
   notas: z.string().nullable().optional(),
   vendedor_id: z.number().int().optional(),
+  documento_tipo: z.enum(['RUC', 'DNI', 'CE', 'NIT', 'OTRO']).nullable().optional(),
+  documento: z.string().max(20).nullable().optional(),
+  razon_social: z.string().max(160).nullable().optional(),
+  direccion: z.string().max(200).nullable().optional(),
 });
 
 rutasClientes.get('/', asincrono((req, res) => res.json(listarClientes(req.usuario, { q: req.query.q }))));

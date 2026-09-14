@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { validar } from '../middleware/validar.js';
-import { requerirAuth, requerirRol, esGestor } from '../middleware/auth.js';
+import { requerirAuth, requerirRol, veTodo } from '../middleware/auth.js';
 import { asincrono, prohibido } from '../middleware/errores.js';
 import {
   resumenDia, cerrarCaja, listarCierres, obtenerCierre, revisarCierre,
@@ -19,7 +19,7 @@ rutasCaja.use(requerirAuth);
 // Vista previa del día (propia, o de otro vendedor si eres gestor).
 rutasCaja.get('/dia', asincrono((req, res) => {
   const vendedorId = req.query.vendedor_id ? Number(req.query.vendedor_id) : req.usuario.id;
-  if (vendedorId !== req.usuario.id && !esGestor(req.usuario)) throw prohibido();
+  if (vendedorId !== req.usuario.id && !veTodo(req.usuario)) throw prohibido();
   res.json(resumenDia(vendedorId, req.query.fecha || undefined));
 }));
 rutasCaja.post('/cerrar', validar(z.object({ fecha: fecha.optional(), observacion: z.string().max(500).optional() })), asincrono((req, res) => res.status(201).json(cerrarCaja(req.usuario, req.datos))));

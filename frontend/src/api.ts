@@ -1,6 +1,6 @@
 export type Rol = 'superadmin' | 'admin' | 'vendedor';
 
-export type Rol2 = Rol | 'revendedor';
+export type Rol2 = Rol | 'revendedor' | 'soporte' | 'contador';
 export interface Usuario {
   id: number; email: string; nombre: string; rol: Rol2;
   comision_pct: number; tope_emisiones_dia: number; tope_demos_semana: number; activo: number;

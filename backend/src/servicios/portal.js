@@ -1,6 +1,6 @@
 import { obtenerDb, ajuste, ahoraSql } from '../db.js';
 import { ErrorHttp, noEncontrado } from '../middleware/errores.js';
-import { firmarCliente, esGestor } from '../middleware/auth.js';
+import { firmarCliente, veTodo } from '../middleware/auth.js';
 import { auditar } from './auditoria.js';
 import { alertarDuenoSinEsperar } from './mensajeria.js';
 import { encuestasPendientes } from './retencion.js';
@@ -88,7 +88,7 @@ export function obtenerTicket(id, { clienteId = null, usuario = null } = {}) {
   const t = db.prepare('SELECT t.*, c.nombre AS cliente_nombre, c.telefono AS cliente_telefono, c.vendedor_id, l.clave AS licencia_clave, pr.nombre AS producto FROM tickets t JOIN clientes c ON c.id = t.cliente_id LEFT JOIN licencias l ON l.id = t.licencia_id LEFT JOIN productos pr ON pr.id = l.producto_id WHERE t.id = ?').get(id);
   if (!t) throw noEncontrado('Ticket no encontrado');
   if (clienteId !== null && t.cliente_id !== clienteId) throw noEncontrado('Ticket no encontrado');
-  if (usuario && !esGestor(usuario) && t.vendedor_id !== usuario.id) throw new ErrorHttp(403, 'Este ticket es de un cliente de otro vendedor');
+  if (usuario && !veTodo(usuario) && t.vendedor_id !== usuario.id) throw new ErrorHttp(403, 'Este ticket es de un cliente de otro vendedor');
   t.mensajes = db.prepare('SELECT m.*, u.nombre AS usuario_nombre FROM ticket_mensajes m LEFT JOIN usuarios u ON u.id = m.usuario_id WHERE m.ticket_id = ? ORDER BY m.id').all(id);
   return t;
 }
@@ -127,7 +127,7 @@ export async function responderTicket(id, { texto, cerrar = false }, { cliente =
 export function listarTicketsPanel(usuario, { estado } = {}) {
   const condiciones = [];
   const params = [];
-  if (!esGestor(usuario)) { condiciones.push('c.vendedor_id = ?'); params.push(usuario.id); }
+  if (!veTodo(usuario)) { condiciones.push('c.vendedor_id = ?'); params.push(usuario.id); }
   if (estado) { condiciones.push('t.estado = ?'); params.push(estado); }
   const where = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : '';
   return obtenerDb()

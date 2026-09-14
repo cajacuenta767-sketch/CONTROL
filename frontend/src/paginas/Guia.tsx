@@ -29,6 +29,7 @@ const PERMISOS: { que: string; vendedor: string; admin: string; dueno: string }[
   { que: 'Equipo', vendedor: 'No', admin: 'Nombres, roles y topes', dueno: 'Todo, incluido lo que gana cada uno' },
   { que: 'Reportes por vendedor', vendedor: 'Solo lo suyo', admin: 'Totales de la agencia', dueno: 'Por producto y por vendedor' },
   { que: 'Catálogo, Auditoría, Ajustes, correos, respaldos', vendedor: 'No', admin: 'No', dueno: 'Sí' },
+  { que: 'Facturación electrónica y Excel contable', vendedor: 'No', admin: 'Emite comprobantes', dueno: 'Sí (también el rol Contador)' },
 ];
 
 export function Guia() {
@@ -69,7 +70,7 @@ export function Guia() {
         </Tarjeta>
       </div>
 
-      <Tarjeta titulo="Quién puede hacer qué" acciones={<span className="suave pequeno">Tu columna está resaltada</span>}>
+      <Tarjeta titulo="Quién puede hacer qué" acciones={<span className="suave pequeno">Tu columna está resaltada · Soporte: tickets, licencias y códigos de emergencia · Contador: caja, comisiones y Excel</span>}>
         <div className="tabla-envoltorio">
           <table className="tabla" aria-label="Permisos por rol">
             <thead><tr><th></th><th className={columna === 'vendedor' ? 'guia-yo' : ''}>Vendedor</th><th className={columna === 'admin' ? 'guia-yo' : ''}>Admin</th><th className={columna === 'dueno' ? 'guia-yo' : ''}>Dueño</th></tr></thead>
