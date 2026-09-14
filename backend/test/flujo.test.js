@@ -14,7 +14,7 @@ const sesion = {};
 const auth = (rol) => ({ Authorization: `Bearer ${sesion[rol]}` });
 
 async function login(email) {
-  const r = await request(app).post('/api/v1/auth/login').send({ email, clave: 'Clave12345' });
+  const r = await request(app).post('/api/v1/auth/login').send({ email, clave: 'ClaveSegura2026' });
   assert.equal(r.status, 200, JSON.stringify(r.body));
   return r.body.token;
 }
@@ -23,10 +23,10 @@ before(async () => {
   reiniciarDb();
   obtenerDb();
   app = crearApp();
-  const superadmin = crearUsuario({ email: 'super@test.com', nombre: 'Super', clave: 'Clave12345', rol: 'superadmin' });
-  crearUsuario({ email: 'admin@test.com', nombre: 'Admin', clave: 'Clave12345', rol: 'admin', tope_emisiones_dia: 3 }, superadmin);
-  crearUsuario({ email: 'vende@test.com', nombre: 'Vendedor', clave: 'Clave12345', rol: 'vendedor', comision_pct: 20, tope_emisiones_dia: 5, tope_demos_semana: 1 }, superadmin);
-  crearUsuario({ email: 'otro@test.com', nombre: 'Otro vendedor', clave: 'Clave12345', rol: 'vendedor' }, superadmin);
+  crearUsuario({ email: 'super@test.com', nombre: 'Super', clave: 'ClaveSegura2026', rol: 'superadmin' });
+  crearUsuario({ email: 'admin@test.com', nombre: 'Admin', clave: 'ClaveSegura2026', rol: 'admin', tope_emisiones_dia: 3 });
+  crearUsuario({ email: 'vende@test.com', nombre: 'Vendedor', clave: 'ClaveSegura2026', rol: 'vendedor', comision_pct: 20, tope_emisiones_dia: 5, tope_demos_semana: 1 });
+  crearUsuario({ email: 'otro@test.com', nombre: 'Otro vendedor', clave: 'ClaveSegura2026', rol: 'vendedor' });
   sesion.superadmin = await login('super@test.com');
   sesion.admin = await login('admin@test.com');
   sesion.vendedor = await login('vende@test.com');

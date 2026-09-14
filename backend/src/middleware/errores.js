@@ -1,3 +1,4 @@
+import { obtenerDb } from '../db.js';
 /** Error de negocio con código HTTP. */
 export class ErrorHttp extends Error {
   constructor(status, mensaje, extra = {}) {
@@ -20,6 +21,10 @@ export function manejarErrores(err, req, res, next) {
     return res.status(400).json({ error: 'JSON inválido' });
   }
   console.error(err);
+  try {
+    obtenerDb().prepare('INSERT INTO errores (mensaje, pila, ruta, usuario_id) VALUES (?, ?, ?, ?)')
+      .run(String(err?.message || err).slice(0, 500), String(err?.stack || '').slice(0, 4000), `${req.method} ${req.originalUrl}`.slice(0, 300), req.usuario?.id ?? null);
+  } catch { /* no bloquear la respuesta por un fallo al registrar */ }
   res.status(500).json({ error: 'Error interno' });
 }
 

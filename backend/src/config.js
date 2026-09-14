@@ -7,7 +7,7 @@ export const config = {
   entorno: process.env.NODE_ENV || 'development',
   puerto: Number(process.env.PUERTO || 4100),
   jwtSecreto: process.env.JWT_SECRETO || 'cambia-este-secreto-en-produccion',
-  jwtDuracion: process.env.JWT_DURACION || '12h',
+  jwtDuracion: process.env.JWT_DURACION || '1h',
   rutaBaseDatos:
     process.env.BASE_DATOS === ':memory:'
       ? ':memory:'

@@ -21,7 +21,15 @@ import { rutasReportes, rutasAuditoria, rutasAjustes } from './rutas/sistema.rut
 export function crearApp() {
   const app = express();
   app.set('trust proxy', 1);
-  app.use(helmet({ contentSecurityPolicy: false }));
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"], scriptSrc: ["'self'"], styleSrc: ["'self'", "'unsafe-inline'"], imgSrc: ["'self'", 'data:', 'blob:'],
+        connectSrc: ["'self'"], fontSrc: ["'self'", 'data:'], objectSrc: ["'none'"], frameAncestors: ["'none'"], baseUri: ["'self'"], formAction: ["'self'"],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+  }));
   app.use(cors({ origin: config.origenesPermitidos }));
   app.use(express.json({ limit: '1mb' }));
   app.use(middlewareContexto);

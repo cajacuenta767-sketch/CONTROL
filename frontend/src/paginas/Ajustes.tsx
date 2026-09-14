@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { Campo, Formulario, Tarjeta } from '../componentes/ui';
+import { SeguridadCuenta } from './Seguridad';
 
 const CAMPOS: { clave: string; etiqueta: string; ayuda: string; tipo?: string }[] = [
   { clave: 'nombre_agencia', etiqueta: 'Nombre de la agencia', ayuda: 'Aparece en recibos y correos.' },
@@ -11,13 +12,13 @@ const CAMPOS: { clave: string; etiqueta: string; ayuda: string; tipo?: string }[
   { clave: 'demo_dias', etiqueta: 'Duración de las demos (días)', ayuda: 'Si el plan demo no define su propia duración.', tipo: 'number' },
   { clave: 'soporte_vitalicio_dias', etiqueta: 'Soporte incluido en el vitalicio (días)', ayuda: 'Después se vende el plan de mantenimiento.', tipo: 'number' },
   { clave: 'metodos_en_mano', etiqueta: 'Métodos que el vendedor entrega en mano', ayuda: 'Separados por coma. Definen el "a entregar" del cierre de caja.' },
+  { clave: 'url_publica', etiqueta: 'URL pública del panel', ayuda: 'Se usa en los enlaces de los correos (recuperar contraseña, recibos). Ej.: https://control.tuagencia.com' },
   { clave: 'desfase_horario_horas', etiqueta: 'Zona horaria (horas respecto a UTC)', ayuda: 'Define qué es "hoy" para la caja y los reportes. Lima/Bogotá/Quito: -5 · La Paz/Santiago/Caracas: -4 · Buenos Aires: -3 · México: -6.', tipo: 'number' },
 ];
 
 export function Ajustes() {
   const [v, setV] = useState<Record<string, string>>({});
   const [clavePublica, setClavePublica] = useState('');
-  const [miClave, setMiClave] = useState({ clave_actual: '', clave_nueva: '' });
   useEffect(() => {
     api.get<Record<string, string>>('/ajustes').then(setV);
     fetch('/api/v1/licencias/clave-publica').then((r) => r.json()).then((r) => setClavePublica(r.clave_publica_base64));
@@ -42,12 +43,7 @@ export function Ajustes() {
             <textarea readOnly rows={3} value={clavePublica} onFocus={(e) => e.currentTarget.select()} />
             <p className="suave pequeno">La clave privada vive en la base de datos de CONTROL. Respáldala: si se pierde, hay que reemitir todas las activaciones.</p>
           </Tarjeta>
-          <Tarjeta titulo="Mi contraseña">
-            <Formulario onEnviar={async () => { await api.post('/auth/cambiar-clave', miClave); setMiClave({ clave_actual: '', clave_nueva: '' }); }} textoBoton="Cambiar" exito="Contraseña actualizada">
-              <Campo etiqueta="Contraseña actual"><input type="password" value={miClave.clave_actual} onChange={(e) => setMiClave({ ...miClave, clave_actual: e.target.value })} required /></Campo>
-              <Campo etiqueta="Nueva contraseña"><input type="password" minLength={8} value={miClave.clave_nueva} onChange={(e) => setMiClave({ ...miClave, clave_nueva: e.target.value })} required /></Campo>
-            </Formulario>
-          </Tarjeta>
+          <SeguridadCuenta />
         </div>
       </div>
     </>

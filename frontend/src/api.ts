@@ -1,8 +1,11 @@
 export type Rol = 'superadmin' | 'admin' | 'vendedor';
 
+export type Rol2 = Rol | 'revendedor';
 export interface Usuario {
-  id: number; email: string; nombre: string; rol: Rol;
+  id: number; email: string; nombre: string; rol: Rol2;
   comision_pct: number; tope_emisiones_dia: number; tope_demos_semana: number; activo: number;
+  debe_cambiar_clave?: number; totp_activo?: number; codigo_ref?: string | null;
+  cupo_licencias?: number | null; descuento_mayorista_pct?: number | null; marca_nombre?: string | null;
 }
 
 const CLAVE_TOKEN = 'control.token';
@@ -26,19 +29,41 @@ export class ErrorApi extends Error {
   }
 }
 
-async function llamar<T>(metodo: string, ruta: string, cuerpo?: unknown): Promise<T> {
+let renovando: Promise<boolean> | null = null;
+
+/** Intenta renovar el token de acceso con la cookie httpOnly. Una sola renovación a la vez. */
+export async function renovarSesion(): Promise<boolean> {
+  if (!renovando) {
+    renovando = fetch('/api/v1/auth/renovar', { method: 'POST', credentials: 'include' })
+      .then(async (r) => { if (!r.ok) return false; const d = await r.json(); sesion.guardar(d.token); return true; })
+      .catch(() => false)
+      .finally(() => { renovando = null; });
+  }
+  return renovando;
+}
+
+async function llamar<T>(metodo: string, ruta: string, cuerpo?: unknown, reintento = true): Promise<T> {
   const cabeceras: Record<string, string> = { 'Content-Type': 'application/json' };
   const t = sesion.token();
   if (t) cabeceras.Authorization = `Bearer ${t}`;
   let r: Response;
   try {
-    r = await fetch(`/api/v1${ruta}`, { method: metodo, headers: cabeceras, body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo) });
+    r = await fetch(`/api/v1${ruta}`, { method: metodo, headers: cabeceras, credentials: 'include', body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo) });
   } catch {
     throw new ErrorApi(0, null);
   }
   const datos = r.status === 204 ? null : await r.json().catch(() => null);
   if (!r.ok) {
-    if (r.status === 401 && !ruta.startsWith('/auth/login')) { sesion.cerrar(); window.location.href = '/login'; }
+    const esAuth = ruta.startsWith('/auth/login') || ruta.startsWith('/auth/renovar') || ruta.startsWith('/auth/2fa/verificar') || ruta.startsWith('/auth/recuperar') || ruta.startsWith('/auth/restablecer');
+    if (r.status === 401 && !esAuth) {
+      // Token vencido: renovar una vez y reintentar la misma llamada.
+      if (reintento && (await renovarSesion())) return llamar<T>(metodo, ruta, cuerpo, false);
+      sesion.cerrar();
+      if (!window.location.pathname.startsWith('/login')) window.location.href = '/login';
+    }
+    if (r.status === 403 && datos?.codigo === 'cambiar_clave' && !window.location.pathname.startsWith('/cambiar-clave')) {
+      window.location.href = '/cambiar-clave';
+    }
     throw new ErrorApi(r.status, datos);
   }
   return datos as T;
@@ -97,7 +122,8 @@ export const ETIQUETA_ESTADO: Record<string, string> = {
   pendiente: 'Pendiente', pagada: 'Pagada', anulada: 'Anulada', confirmado: 'Confirmado', rechazado: 'Rechazado',
   devengada: 'Devengada', liquidada: 'Liquidada', revertida: 'Revertida', cerrado: 'Por aprobar', aprobado: 'Aprobado', observado: 'Observado',
   mensual: 'Mensual', anual: 'Anual', vitalicio: 'Vitalicio', sucursal_extra: 'Sucursal extra', mantenimiento: 'Mantenimiento', demo: 'Demo',
-  superadmin: 'Superadmin', admin: 'Admin', vendedor: 'Vendedor',
+  superadmin: 'Superadmin', admin: 'Admin', vendedor: 'Vendedor', revendedor: 'Revendedor',
+  abierto: 'Abierto', respondido: 'Respondido', cerrado_ticket: 'Cerrado', pagado: 'Pagado', cancelado: 'Cancelado', expirado: 'Expirado',
 };
 
 export const ETIQUETA_METODO: Record<string, string> = {

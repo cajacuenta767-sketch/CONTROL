@@ -239,6 +239,157 @@ const MIGRACIONES = [
         ('desfase_horario_horas', '-5');
     `,
   },
+  {
+    version: 2,
+    sql: `
+      -- usuarios: seguridad, revendedores, marca blanca, código de referido
+      CREATE TABLE usuarios_v2 (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT NOT NULL UNIQUE,
+        nombre TEXT NOT NULL,
+        hash_clave TEXT NOT NULL,
+        rol TEXT NOT NULL CHECK (rol IN ('superadmin','admin','vendedor','revendedor')),
+        comision_pct REAL NOT NULL DEFAULT 20,
+        tope_emisiones_dia INTEGER NOT NULL DEFAULT 20,
+        tope_demos_semana INTEGER NOT NULL DEFAULT 10,
+        telefono TEXT,
+        activo INTEGER NOT NULL DEFAULT 1,
+        creado_en TEXT NOT NULL DEFAULT (datetime('now')),
+        intentos_fallidos INTEGER NOT NULL DEFAULT 0,
+        bloqueado_hasta TEXT,
+        debe_cambiar_clave INTEGER NOT NULL DEFAULT 0,
+        totp_secreto TEXT,
+        totp_activo INTEGER NOT NULL DEFAULT 0,
+        codigo_ref TEXT UNIQUE,
+        cupo_licencias INTEGER,
+        descuento_mayorista_pct REAL,
+        marca_nombre TEXT,
+        ultimo_acceso TEXT
+      );
+      INSERT INTO usuarios_v2 (id, email, nombre, hash_clave, rol, comision_pct, tope_emisiones_dia, tope_demos_semana, telefono, activo, creado_en)
+        SELECT id, email, nombre, hash_clave, rol, comision_pct, tope_emisiones_dia, tope_demos_semana, telefono, activo, creado_en FROM usuarios;
+      DROP TABLE usuarios;
+      ALTER TABLE usuarios_v2 RENAME TO usuarios;
+
+      CREATE TABLE sesiones (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        usuario_id INTEGER NOT NULL REFERENCES usuarios(id),
+        hash_token TEXT NOT NULL UNIQUE,
+        ip TEXT, agente TEXT,
+        creado_en TEXT NOT NULL DEFAULT (datetime('now')),
+        expira_en TEXT NOT NULL,
+        ultimo_uso TEXT NOT NULL DEFAULT (datetime('now')),
+        revocada INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE TABLE tokens_recuperacion (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        usuario_id INTEGER NOT NULL REFERENCES usuarios(id),
+        hash_token TEXT NOT NULL UNIQUE,
+        expira_en TEXT NOT NULL,
+        usado_en TEXT,
+        creado_en TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE TABLE correos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        para TEXT NOT NULL, asunto TEXT NOT NULL, html TEXT NOT NULL,
+        estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente','enviado','error','sin_smtp')),
+        error TEXT, creado_en TEXT NOT NULL DEFAULT (datetime('now')), enviado_en TEXT
+      );
+
+      -- dinero
+      ALTER TABLE ventas ADD COLUMN total_base REAL;
+      UPDATE ventas SET total_base = total;
+      ALTER TABLE pagos ADD COLUMN comprobante_archivo TEXT;
+      ALTER TABLE pagos ADD COLUMN enlace_pago_id INTEGER;
+      ALTER TABLE pagos ADD COLUMN monto_base REAL;
+      UPDATE pagos SET monto_base = monto;
+      ALTER TABLE cierres_caja ADD COLUMN por_moneda TEXT NOT NULL DEFAULT '{}';
+      ALTER TABLE cierres_caja ADD COLUMN total_base REAL NOT NULL DEFAULT 0;
+      UPDATE cierres_caja SET total_base = total_cobrado;
+      ALTER TABLE productos ADD COLUMN version_actual TEXT;
+      ALTER TABLE clientes ADD COLUMN hash_acceso TEXT;
+      ALTER TABLE clientes ADD COLUMN origen TEXT;
+
+      CREATE TABLE enlaces_pago (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        venta_id INTEGER NOT NULL REFERENCES ventas(id),
+        proveedor TEXT NOT NULL CHECK (proveedor IN ('demo','stripe','paypal')),
+        id_externo TEXT, url TEXT NOT NULL,
+        monto REAL NOT NULL, moneda TEXT NOT NULL,
+        estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente','pagado','cancelado','expirado')),
+        datos TEXT, creado_por INTEGER REFERENCES usuarios(id),
+        creado_en TEXT NOT NULL DEFAULT (datetime('now')), pagado_en TEXT
+      );
+      CREATE TABLE metas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        usuario_id INTEGER NOT NULL REFERENCES usuarios(id),
+        mes TEXT NOT NULL,
+        objetivo_monto REAL NOT NULL,
+        bono_pct REAL NOT NULL DEFAULT 5,
+        creado_por INTEGER REFERENCES usuarios(id),
+        UNIQUE (usuario_id, mes)
+      );
+      CREATE TABLE tickets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        cliente_id INTEGER NOT NULL REFERENCES clientes(id),
+        licencia_id INTEGER REFERENCES licencias(id),
+        asunto TEXT NOT NULL,
+        estado TEXT NOT NULL DEFAULT 'abierto' CHECK (estado IN ('abierto','respondido','cerrado')),
+        creado_en TEXT NOT NULL DEFAULT (datetime('now')),
+        actualizado_en TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE TABLE ticket_mensajes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ticket_id INTEGER NOT NULL REFERENCES tickets(id),
+        autor_tipo TEXT NOT NULL CHECK (autor_tipo IN ('cliente','agencia')),
+        usuario_id INTEGER REFERENCES usuarios(id),
+        texto TEXT NOT NULL,
+        creado_en TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE TABLE notificaciones (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tipo TEXT NOT NULL,
+        referencia TEXT NOT NULL,
+        canal TEXT NOT NULL,
+        detalle TEXT,
+        creado_en TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE (tipo, referencia)
+      );
+      CREATE TABLE codigos_emergencia (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        licencia_id INTEGER NOT NULL REFERENCES licencias(id),
+        huella TEXT NOT NULL,
+        expira_en TEXT NOT NULL,
+        creado_por INTEGER NOT NULL REFERENCES usuarios(id),
+        motivo TEXT,
+        creado_en TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE TABLE errores (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        mensaje TEXT NOT NULL, pila TEXT, ruta TEXT, usuario_id INTEGER,
+        creado_en TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
+      INSERT OR IGNORE INTO ajustes (clave, valor) VALUES
+        ('url_publica', 'http://localhost:5173'),
+        ('direccion_agencia', ''),
+        ('logo_url', ''),
+        ('tipos_cambio', '{"USD":1,"PEN":3.75,"BOB":6.9,"COP":4100,"CLP":950,"MXN":18,"ARS":1000}'),
+        ('smtp_host', ''), ('smtp_puerto', '587'), ('smtp_usuario', ''), ('smtp_clave', ''), ('smtp_desde', ''),
+        ('stripe_clave_secreta', ''), ('stripe_webhook_secreto', ''),
+        ('paypal_cliente', ''), ('paypal_secreto', ''), ('paypal_sandbox', '1'),
+        ('pasarela_demo', '1'),
+        ('plantilla_wa_claves', 'Hola {cliente}, gracias por tu compra de {producto}. {claves_intro}:\n\n{claves}\n\nActívala en el sistema, en Ajustes › Licencia. Cada clave se vincula al primer equipo donde la actives. Cualquier duda me escribes.'),
+        ('plantilla_wa_cobro', 'Hola {cliente}, te recuerdo el saldo pendiente de {monto} por {producto} (venta {venta}). Apenas se confirme el pago se activan tus licencias. {enlace}'),
+        ('plantilla_wa_renovacion', 'Hola {cliente}, te escribo de {agencia}. Tu licencia de {producto} vence el {vence}. ¿Coordinamos la renovación para que no pierdas acceso? {enlace}'),
+        ('hora_recordatorio_caja', '20'),
+        ('respaldos_conservar', '14'),
+        ('dias_aviso_vencimiento', '30,7,1'),
+        ('renovacion_automatica_dias', '7'),
+        ('api_key_pedidos', ''),
+        ('portal_activo', '1');
+    `,
+  },
 ];
 
 function migrar(d) {

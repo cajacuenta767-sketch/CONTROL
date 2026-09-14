@@ -77,6 +77,8 @@ if (!soloDemo) {
   // Demo activa.
   crearVenta({ cliente_id: c3.id, plan_id: planesPorProducto.farmasys.demo.id }, v1);
 
+  // Cuentas de demostración: sin cambio de contraseña obligatorio.
+  db.prepare('UPDATE usuarios SET debe_cambiar_clave = 0').run();
   console.log('Equipo de ejemplo: admin@agencia.test, carlos@agencia.test, lucia@agencia.test (clave Control2026!).');
 }
 

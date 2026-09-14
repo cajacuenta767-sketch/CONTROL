@@ -3,6 +3,7 @@ import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { useSesion } from './sesion';
 import { Cargando, LimiteErrores } from './componentes/ui';
 import { Login } from './paginas/Login';
+import { Recuperar, Restablecer, CambiarClave } from './paginas/Recuperar';
 import { Panel } from './paginas/Panel';
 import { Ventas } from './paginas/Ventas';
 import { VentaNueva } from './paginas/VentaNueva';
@@ -47,8 +48,18 @@ export function App() {
   }, [ubicacion.pathname]);
 
   if (cargando) return <div className="login-form" style={{ minHeight: '100vh' }}><Cargando /></div>;
-  if (!usuario) return ubicacion.pathname === '/login' ? <Login /> : <Navigate to="/login" replace />;
-  if (ubicacion.pathname === '/login') return <Navigate to="/" replace />;
+  if (!usuario) {
+    return (
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/recuperar" element={<Recuperar />} />
+        <Route path="/restablecer/:token" element={<Restablecer />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    );
+  }
+  if (usuario.debe_cambiar_clave) return <CambiarClave />;
+  if (['/login', '/recuperar', '/cambiar-clave'].includes(ubicacion.pathname) || ubicacion.pathname.startsWith('/restablecer')) return <Navigate to="/" replace />;
 
   const grupos: { titulo?: string; enlaces: { a: string; t: string; i: keyof typeof I }[] }[] = [
     { enlaces: [{ a: '/', t: 'Panel', i: 'panel' }, { a: '/ventas', t: 'Ventas', i: 'ventas' }, { a: '/licencias', t: 'Licencias', i: 'licencias' }, { a: '/clientes', t: 'Clientes', i: 'clientes' }] },
