@@ -3,11 +3,12 @@ import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync } from 'node:
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { obtenerDb, ajuste, ahoraSql } from '../db.js';
+import { dirDatos } from '../config.js';
 import { ErrorHttp, noEncontrado } from '../middleware/errores.js';
 import { auditar } from './auditoria.js';
 import { firmarToken } from '../firmas.js';
 
-export const DIR_VERSIONES = resolve(dirname(fileURLToPath(import.meta.url)), '../../datos/versiones');
+export const DIR_VERSIONES = resolve(dirDatos(), 'versiones');
 const urlPublica = () => ajuste('url_publica', 'http://localhost:5173').replace(/\/$/, '');
 
 /** Compara versiones "1.2.3" numéricamente. */

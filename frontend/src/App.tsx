@@ -31,6 +31,7 @@ import { Renovaciones } from './paginas/Renovaciones';
 import { Prospectos } from './paginas/Prospectos';
 import { Tablero } from './paginas/Tablero';
 import { Contabilidad } from './paginas/Contabilidad';
+import { Descargar } from './paginas/Descargar';
 import { usePwa } from './pwa';
 
 const I = {
@@ -56,7 +57,7 @@ const I = {
 
 const TITULOS: [string, string][] = [
   ['/ventas/nueva', 'Nueva venta'], ['/ventas', 'Ventas'], ['/licencias', 'Licencias'], ['/clientes', 'Clientes'], ['/caja', 'Caja'],
-  ['/comisiones', 'Comisiones'], ['/reportes', 'Reportes'], ['/tickets', 'Tickets'], ['/precios', 'Lista de precios'], ['/guia', 'Cómo funciona'], ['/renovaciones', 'Renovaciones'], ['/prospectos', 'Prospectos'], ['/tablero', 'Tablero'], ['/contabilidad', 'Contabilidad'], ['/seguridad', 'Mi seguridad'], ['/portal', 'Portal del cliente'], ['/catalogo', 'Catálogo'], ['/equipo', 'Equipo'], ['/auditoria', 'Auditoría'], ['/ajustes', 'Ajustes'], ['/login', 'Entrar'], ['/comprar', 'Comprar'], ['/pagar', 'Pagar'], ['/pedido', 'Mi pedido'],
+  ['/comisiones', 'Comisiones'], ['/reportes', 'Reportes'], ['/tickets', 'Tickets'], ['/precios', 'Lista de precios'], ['/guia', 'Cómo funciona'], ['/renovaciones', 'Renovaciones'], ['/prospectos', 'Prospectos'], ['/tablero', 'Tablero'], ['/contabilidad', 'Contabilidad'], ['/seguridad', 'Mi seguridad'], ['/portal', 'Portal del cliente'], ['/descargar', 'Descargar la app'], ['/catalogo', 'Catálogo'], ['/equipo', 'Equipo'], ['/auditoria', 'Auditoría'], ['/ajustes', 'Ajustes'], ['/login', 'Entrar'], ['/comprar', 'Comprar'], ['/pagar', 'Pagar'], ['/pedido', 'Mi pedido'],
 ];
 
 export function App() {
@@ -77,10 +78,11 @@ export function App() {
     document.title = `${t} · CONTROL`;
   }, [ubicacion.pathname]);
 
-  const publica = ['/comprar', '/pagar/', '/pago-exitoso', '/pago-cancelado', '/pedido/', '/portal'].some((p) => ubicacion.pathname.startsWith(p));
+  const publica = ['/comprar', '/pagar/', '/pago-exitoso', '/pago-cancelado', '/pedido/', '/portal', '/descargar'].some((p) => ubicacion.pathname.startsWith(p));
   if (publica) {
     return (
       <Routes>
+        <Route path="/descargar" element={<Descargar />} />
         <Route path="/portal" element={<PortalAcceso />} />
         <Route path="/portal/inicio" element={<PortalInicio />} />
         <Route path="/comprar" element={<Comprar />} />

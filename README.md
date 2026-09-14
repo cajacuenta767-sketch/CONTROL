@@ -29,13 +29,15 @@ ReservaFlow, Avendia, BARBER-PRO…) desde un solo panel.
 | Retención | Semáforo de salud por cliente, encuesta de una pregunta en el portal, campañas de renovación masivas |
 | Ventas | PWA instalable, tablero del equipo, material de venta por producto, prospectos con embudo, demo autoservicio en la web de compra |
 | Operación | Facturación electrónica (Nubefact/SUNAT o manual), alertas al dueño por Telegram/WhatsApp/correo, roles soporte y contador, Excel contable mensual, chequeo de salud para monitoreo externo |
+| Apps | App Android (Capacitor) y app Windows (Electron) que se conectan a tu servidor, página pública `/descargar` con los instaladores, flujo de GitHub Actions que los compila y publica |
 
 La especificación completa está en [`docs/01-especificacion.md`](docs/01-especificacion.md),
 la guía para conectar cada producto en [`docs/02-integracion-productos.md`](docs/02-integracion-productos.md)
 la revisión y el estado de cada mejora en [`docs/03-revision-y-mejoras.md`](docs/03-revision-y-mejoras.md)
 el despliegue en [`docs/04-despliegue.md`](docs/04-despliegue.md) la lista de precios por tipo de
 negocio en [`docs/05-precios-y-posicionamiento.md`](docs/05-precios-y-posicionamiento.md) y la
-lista de cuentas y datos que debe entregar el dueño en [`docs/06-lo-que-necesito-de-ti.md`](docs/06-lo-que-necesito-de-ti.md).
+lista de cuentas y datos que debe entregar el dueño en [`docs/06-lo-que-necesito-de-ti.md`](docs/06-lo-que-necesito-de-ti.md)
+y las apps para celular y PC en [`docs/07-apps-movil-y-escritorio.md`](docs/07-apps-movil-y-escritorio.md).
 
 ## Puesta en marcha
 
@@ -66,8 +68,8 @@ SUPERADMIN_EMAIL=tu@correo.com SUPERADMIN_NOMBRE="Tu nombre" SUPERADMIN_CLAVE='U
 | Comando | Qué hace |
 |---|---|
 | `npm run dev` | API y panel en modo desarrollo |
-| `npm test` | Tests del backend (81: flujo completo, seguridad, dinero, tareas, portal, emergencia, precios y roles, cobros, retención, prospectos, operación, producto) |
-| `npm run e2e` | Compila el panel y recorre 19 flujos en Chromium con Playwright (servidor temporal sembrado) |
+| `npm test` | Tests del backend (82: flujo completo, seguridad, dinero, tareas, portal, emergencia, precios y roles, cobros, retención, prospectos, operación, producto) |
+| `npm run e2e` | Compila el panel y recorre 20 flujos en Chromium con Playwright (servidor temporal sembrado) |
 | `npm run build` | Compila el panel en `frontend/dist`; la API lo sirve sola en producción |
 | `npm start` | Arranca la API (sirve el panel compilado en el mismo puerto) |
 
@@ -90,6 +92,7 @@ backend/   API Express + SQLite (node:sqlite), sin binarios nativos
   scripts/seed.js  datos iniciales
   test/            tests con node --test + supertest
 frontend/  Panel React + Vite + TypeScript
+apps/      App Android (Capacitor) y app Windows (Electron) del panel
 sdk/       Clientes para Node, PHP (Laravel) y Python (FastAPI) + pantalla estándar "Licencia"
 frontend/e2e/  Pruebas de extremo a extremo con Playwright
 docs/      Especificación e integración

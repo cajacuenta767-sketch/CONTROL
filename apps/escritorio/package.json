@@ -1,0 +1,29 @@
+{
+  "name": "control-escritorio",
+  "productName": "CONTROL",
+  "version": "1.0.0",
+  "description": "CONTROL para Windows: el panel de la agencia como aplicación de escritorio",
+  "main": "main.js",
+  "private": true,
+  "author": "Agencia",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron .",
+    "empaquetar:win": "electron-packager . CONTROL --platform=win32 --arch=x64 --out=dist --overwrite --icon=icono.ico --app-copyright=\"Agencia\" --win32metadata.CompanyName=Agencia --win32metadata.ProductName=CONTROL",
+    "instalador:win": "electron-builder --win"
+  },
+  "devDependencies": {
+    "@electron/packager": "^18.3.6",
+    "electron": "^36.9.5",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.agencia.control",
+    "productName": "CONTROL",
+    "artifactName": "CONTROL-${version}-${os}.${ext}",
+    "files": ["main.js", "preload.js", "conectar.html", "icono.png", "icono.ico"],
+    "win": { "target": [{ "target": "nsis", "arch": ["x64"] }, { "target": "portable", "arch": ["x64"] }], "icon": "icono.ico" },
+    "nsis": { "oneClick": true, "perMachine": false, "language": "3082", "shortcutName": "CONTROL", "artifactName": "CONTROL-Instalador-${version}.${ext}" },
+    "portable": { "artifactName": "CONTROL-Portable-${version}.${ext}" }
+  }
+}

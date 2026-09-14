@@ -9,6 +9,9 @@ import { auditar, listarAuditoria } from '../servicios/auditoria.js';
 import { resumen, buscar, series, tablero } from '../servicios/reportes.js';
 import { reporteEncuestas, campanaRenovaciones, generarRenovaciones } from '../servicios/retencion.js';
 import { exportacionContable } from '../servicios/contabilidad.js';
+import multer from 'multer';
+import { extname } from 'node:path';
+import { estadoDescargas, registrarArchivo, quitarArchivo, asegurarDirDescargas, PLATAFORMAS } from '../servicios/descargas.js';
 
 export const rutasReportes = Router();
 rutasReportes.use(requerirAuth);
@@ -102,3 +105,13 @@ rutasSistema.get('/respaldos/:nombre', asincrono((req, res) => {
   auditar({ usuarioId: req.usuario.id, accion: 'respaldo.descargar', detalle: { nombre: req.params.nombre } });
   res.download(ruta);
 }));
+
+/* ---------- Apps: instaladores para la landing /descargar (solo superadmin) ---------- */
+const subirApp = multer({
+  storage: multer.diskStorage({ destination: (req, file, cb) => cb(null, asegurarDirDescargas()), filename: (req, file, cb) => cb(null, `${req.params.plataforma}-${Date.now()}${extname(file.originalname || '').toLowerCase().slice(0, 6) || '.bin'}`) }),
+  limits: { fileSize: 300 * 1024 * 1024 },
+});
+rutasSistema.get('/descargas', asincrono((req, res) => res.json(estadoDescargas())));
+rutasSistema.post('/descargas/:plataforma', (req, res, next) => { if (!PLATAFORMAS[req.params.plataforma]) return next(new ErrorHttp(422, 'Plataforma desconocida')); subirApp.single('archivo')(req, res, (e) => next(e ? new ErrorHttp(422, e.code === 'LIMIT_FILE_SIZE' ? 'El archivo supera 300 MB' : e.message) : undefined)); },
+  asincrono((req, res) => { if (!req.file) throw new ErrorHttp(422, 'Adjunta el archivo en el campo "archivo"'); res.status(201).json(registrarArchivo(req.params.plataforma, req.file.filename, req.usuario)); }));
+rutasSistema.delete('/descargas/:plataforma', asincrono((req, res) => res.json(quitarArchivo(req.params.plataforma, req.usuario))));

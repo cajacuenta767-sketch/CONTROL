@@ -1,0 +1,97 @@
+name: Apps (Windows y Android)
+
+# Compila el instalador de Windows y el APK de Android y los publica como Release de GitHub.
+# Se dispara a mano (Actions › Apps › Run workflow) o al crear una etiqueta apps-v1.2.3.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Versión (p. ej. 1.0.0)'
+        required: true
+        default: '1.0.0'
+  push:
+    tags: ['apps-v*']
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults: { run: { working-directory: apps/escritorio } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Versión
+        shell: bash
+        run: |
+          V="${{ github.event.inputs.version }}"; [ -z "$V" ] && V="${GITHUB_REF_NAME#apps-v}"
+          npm version "$V" --no-git-tag-version --allow-same-version
+      - run: npm install --no-audit --no-fund
+      - run: npx electron-builder --win --publish never
+      - uses: actions/upload-artifact@v4
+        with: { name: windows, path: apps/escritorio/dist/*.exe }
+
+  android:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: apps/android } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21 }
+      - run: npm install --no-audit --no-fund
+      - run: npx cap add android
+      - run: npx cap sync android
+      - name: Versión y nombre
+        run: |
+          V="${{ github.event.inputs.version }}"; [ -z "$V" ] && V="${GITHUB_REF_NAME#apps-v}"
+          sed -i "s/versionName \"1.0\"/versionName \"$V\"/" android/app/build.gradle
+          sed -i 's/<string name="app_name">.*<\/string>/<string name="app_name">CONTROL<\/string>/' android/app/src/main/res/values/strings.xml
+          sed -i 's/<string name="title_activity_main">.*<\/string>/<string name="title_activity_main">CONTROL<\/string>/' android/app/src/main/res/values/strings.xml
+      - name: Firma (si hay keystore en secretos) o debug
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          KEYSTORE_CLAVE: ${{ secrets.ANDROID_KEYSTORE_CLAVE }}
+          ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ALIAS_CLAVE: ${{ secrets.ANDROID_KEY_CLAVE }}
+        run: |
+          cd android
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > app/control.keystore
+            cat >> app/build.gradle <<GRADLE
+          android { signingConfigs { release { storeFile file("control.keystore"); storePassword "$KEYSTORE_CLAVE"; keyAlias "$ALIAS"; keyPassword "$ALIAS_CLAVE" } }
+                    buildTypes { release { signingConfig signingConfigs.release } } }
+          GRADLE
+            ./gradlew assembleRelease --no-daemon
+            cp app/build/outputs/apk/release/app-release.apk ../CONTROL-android.apk
+          else
+            ./gradlew assembleDebug --no-daemon
+            cp app/build/outputs/apk/debug/app-debug.apk ../CONTROL-android.apk
+          fi
+      - uses: actions/upload-artifact@v4
+        with: { name: android, path: apps/android/CONTROL-android.apk }
+
+  publicar:
+    needs: [windows, android]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: salida }
+      - name: Nombre de la versión
+        id: v
+        run: |
+          V="${{ github.event.inputs.version }}"; [ -z "$V" ] && V="${GITHUB_REF_NAME#apps-v}"
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apps-v${{ steps.v.outputs.version }}
+          name: Apps CONTROL ${{ steps.v.outputs.version }}
+          body: |
+            Instaladores de CONTROL para Windows y Android. Pega las URLs de estos archivos en Ajustes › Aplicaciones
+            o súbelos desde allí para que aparezcan en la página de descarga del panel.
+          files: |
+            salida/windows/*.exe
+            salida/android/*.apk

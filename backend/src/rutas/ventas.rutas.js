@@ -5,6 +5,7 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { resolve, dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validar } from '../middleware/validar.js';
+import { dirDatos } from '../config.js';
 import { requerirAuth, requerirRol } from '../middleware/auth.js';
 import { asincrono, ErrorHttp } from '../middleware/errores.js';
 import { crearVenta, listarVentas, obtenerVenta, registrarPago, confirmarPago, rechazarPago, anularVenta, adjuntarComprobante, obtenerPago } from '../servicios/ventas.js';
@@ -13,7 +14,7 @@ import { alertarDuenoSinEsperar } from '../servicios/mensajeria.js';
 import { emitirComprobante, anularComprobante, listarComprobantes, facturarAutomatico, facturacionActiva, desglosarIgv } from '../servicios/facturacion.js';
 import { reciboVenta, reciboPago } from '../servicios/documentos.js';
 
-export const DIR_COMPROBANTES = resolve(dirname(fileURLToPath(import.meta.url)), '../../datos/comprobantes');
+export const DIR_COMPROBANTES = resolve(dirDatos(), 'comprobantes');
 
 const subir = multer({
   storage: multer.diskStorage({

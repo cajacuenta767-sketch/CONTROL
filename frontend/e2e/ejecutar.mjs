@@ -194,6 +194,27 @@ try {
     const [descarga] = await Promise.all([pagina.waitForEvent('download'), pagina.click('button:has-text("Descargar Excel del mes")')]);
     if (!/contabilidad-\d{4}-\d{2}\.xlsx/.test(descarga.suggestedFilename())) throw new Error(`descarga inesperada: ${descarga.suggestedFilename()}`);
   });
+  await paso('landing pública de descarga con instaladores publicados', async () => {
+    const publica = await navegador.newPage({ viewport: { width: 1200, height: 900 } });
+    publica.on('pageerror', (e) => errores.push(`pageerror: ${e.message}`));
+    await publica.goto(`${base}/descargar`);
+    await publica.waitForSelector('.landing-hero h1');
+    if (await publica.locator('a:has-text("Descargar para Windows")').count()) throw new Error('no debería haber instalador todavía');
+    await publica.close();
+    // el dueño sube un instalador y la landing lo ofrece
+    await pagina.goto(`${base}/ajustes`);
+    await pagina.click('button:has-text("Aplicaciones (Android y Windows)")');
+    await pagina.waitForSelector('text=Instaladores publicados');
+    const entrada = pagina.locator('input[type=file][accept=".exe,.msi,.zip"]').first();
+    await entrada.setInputFiles({ name: 'CONTROL-Instalador-1.0.0.exe', mimeType: 'application/x-msdownload', buffer: Buffer.from('MZ prueba') });
+    await pagina.waitForSelector('text=Archivo subido');
+    const publica2 = await navegador.newPage({ viewport: { width: 1200, height: 900 }, acceptDownloads: true });
+    await publica2.goto(`${base}/descargar`);
+    await publica2.waitForSelector('a:has-text("Descargar para Windows")');
+    const [descarga] = await Promise.all([publica2.waitForEvent('download'), publica2.click('a:has-text("Descargar para Windows")')]);
+    if (descarga.suggestedFilename() !== 'CONTROL-Instalador.exe') throw new Error(`nombre inesperado: ${descarga.suggestedFilename()}`);
+    await publica2.close();
+  });
   await paso('demo autoservicio desde la web de compra', async () => {
     const publica = await navegador.newPage({ viewport: { width: 1200, height: 900 } });
     publica.on('pageerror', (e) => errores.push(`pageerror: ${e.message}`));

@@ -101,6 +101,9 @@ export function Ajustes() {
   const [errores, setErrores] = useState<any[]>([]);
   const cargarCorreos = () => api.get<any>('/correos').then((r) => setCorreos(r.filas)).catch(() => null);
   const [mensajes, setMensajes] = useState<any[]>([]);
+  const [descargas, setDescargas] = useState<any | null>(null);
+  const cargarDescargas = () => api.get<any>('/sistema/descargas').then(setDescargas).catch(() => null);
+  const subirApp = async (plataforma: string, archivo: File) => { await api.subir(`/sistema/descargas/${plataforma}`, archivo); await cargarDescargas(); };
   const cargarMensajes = () => api.get<any[]>('/sistema/mensajes').then(setMensajes).catch(() => null);
   const cargarSistema = async () => {
     setTareas(await api.get<any>('/sistema/tareas').catch(() => null));
@@ -128,6 +131,7 @@ export function Ajustes() {
         <button className={`chip ${seccion === -1 ? 'activo' : ''}`} onClick={() => setSeccion(-1)}>Seguridad de mi cuenta</button>
         <button className={`chip ${seccion === -2 ? 'activo' : ''}`} onClick={() => setSeccion(-2)}>Correos enviados</button>
         <button className={`chip ${seccion === -4 ? 'activo' : ''}`} onClick={() => { setSeccion(-4); cargarMensajes(); }}>WhatsApp y Telegram enviados</button>
+        <button className={`chip ${seccion === -5 ? 'activo' : ''}`} onClick={() => { setSeccion(-5); cargarDescargas(); }}>Aplicaciones (Android y Windows)</button>
         <button className={`chip ${seccion === -3 ? 'activo' : ''}`} onClick={() => { setSeccion(-3); cargarSistema(); }}>Sistema</button>
       </div>
 
@@ -208,6 +212,31 @@ export function Ajustes() {
               { titulo: 'Ruta', celda: (e) => <code className="clave">{e.ruta}</code> },
               { titulo: 'Mensaje', celda: (e) => <span className="pequeno">{e.mensaje}</span> },
             ]} />
+          </Tarjeta>
+        </div>
+      )}
+      {seccion === -5 && (
+        <div className="grid-2">
+          <Tarjeta titulo="Instaladores publicados">
+            <p className="suave" style={{ marginTop: 0 }}>Lo que aparece en la página pública <a href={`${v.url_publica || ''}/descargar`} target="_blank" rel="noreferrer">{(v.url_publica || '')}/descargar</a>. Sube el archivo aquí o pega la URL del Release de GitHub (el archivo subido tiene prioridad).</p>
+            {descargas ? Object.entries(descargas.plataformas as Record<string, any>).map(([k, p]) => (
+              <div key={k} className="fila" style={{ justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--borde)' }}>
+                <div><strong>{k === 'android' ? 'Android (APK)' : k === 'windows' ? 'Windows (instalador .exe)' : 'Windows portable'}</strong><div className="suave pequeno">{p.disponible ? `${p.origen === 'archivo' ? `Archivo subido · ${((p.tamano || 0) / 1048576).toFixed(1)} MB` : 'URL externa'}${p.actualizado_en ? ` · ${fecha(p.actualizado_en, true)}` : ''}` : 'Sin publicar'}</div></div>
+                <div className="fila">
+                  <label className="btn secundario chico" style={{ cursor: 'pointer' }}>Subir archivo<input type="file" hidden accept={k === 'android' ? '.apk' : '.exe,.msi,.zip'} onChange={async (e) => { const f = e.target.files?.[0]; if (f) { try { await subirApp(k, f); } catch (err) { alert(err instanceof Error ? err.message : 'Error'); } } }} /></label>
+                  {p.origen === 'archivo' && <BotonAccion texto="Quitar" className="btn secundario chico" exito="Archivo quitado" onClick={async () => { const t = sesion.token(); await fetch(`/api/v1/sistema/descargas/${k}`, { method: 'DELETE', headers: t ? { Authorization: `Bearer ${t}` } : {} }); await cargarDescargas(); }} />}
+                </div>
+              </div>
+            )) : <p className="suave">Cargando…</p>}
+          </Tarjeta>
+          <Tarjeta titulo="URLs externas y versión">
+            <Formulario onEnviar={async () => { await api.patch('/ajustes', { descarga_version: v.descarga_version ?? '', descarga_android_url: v.descarga_android_url ?? '', descarga_windows_url: v.descarga_windows_url ?? '', descarga_windows_portable_url: v.descarga_windows_portable_url ?? '' }); invalidarAjustes(); await cargarDescargas(); }} exito="Guardado">
+              <Campo etiqueta="Versión que se muestra"><input value={v.descarga_version ?? ''} onChange={(e) => setV({ ...v, descarga_version: e.target.value })} /></Campo>
+              <Campo etiqueta="URL del APK de Android" ayuda="Ej.: la URL del archivo en el Release de GitHub que genera el flujo Apps."><input value={v.descarga_android_url ?? ''} onChange={(e) => setV({ ...v, descarga_android_url: e.target.value })} /></Campo>
+              <Campo etiqueta="URL del instalador de Windows"><input value={v.descarga_windows_url ?? ''} onChange={(e) => setV({ ...v, descarga_windows_url: e.target.value })} /></Campo>
+              <Campo etiqueta="URL de la versión portable de Windows"><input value={v.descarga_windows_portable_url ?? ''} onChange={(e) => setV({ ...v, descarga_windows_portable_url: e.target.value })} /></Campo>
+            </Formulario>
+            <p className="suave pequeno">Cómo generar los instaladores: en GitHub, Actions › <strong>Apps (Windows y Android)</strong> › Run workflow, con el número de versión. Al terminar deja un Release con el .exe y el .apk. Detalle en docs/07-apps-movil-y-escritorio.md.</p>
           </Tarjeta>
         </div>
       )}

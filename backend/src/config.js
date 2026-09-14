@@ -16,3 +16,6 @@ export const config = {
   // Duración del token firmado que reciben los productos (días).
   tokenLicenciaDias: Number(process.env.TOKEN_LICENCIA_DIAS || 7),
 };
+
+/** Carpeta de datos persistentes (comprobantes, versiones, descargas, respaldos): junto a la base de datos. */
+export const dirDatos = () => (config.rutaBaseDatos === ':memory:' ? resolve(raiz, 'datos') : dirname(config.rutaBaseDatos));

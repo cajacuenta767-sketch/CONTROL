@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { validar } from '../middleware/validar.js';
 import { asincrono, ErrorHttp } from '../middleware/errores.js';
 import { ajuste } from '../db.js';
+import { estadoDescargas, archivoDescarga } from '../servicios/descargas.js';
 import { catalogoPublico, vendedorPorCodigo, crearPedido, estadoPedidoPublico } from '../servicios/publico.js';
 import { obtenerEnlacePublico, confirmarDemo, paypalCapturar, verificarFirmaStripe, webhookStripe, culqiDatosCheckout, culqiCobrarConToken, webhookCulqi } from '../servicios/pagos_en_linea.js';
 
@@ -44,6 +45,12 @@ rutasPublico.post('/pedidos', rateLimit({ windowMs: 60 * 60 * 1000, limit: 20, s
 
 rutasPublico.get('/pedidos/:numero', asincrono((req, res) => res.json(estadoPedidoPublico(req.params.numero, req.query.email))));
 
+rutasPublico.get('/descargas', asincrono((req, res) => res.json(estadoDescargas())));
+rutasPublico.get('/descargas/:plataforma', asincrono((req, res) => {
+  const { ruta, nombre, tipo } = archivoDescarga(req.params.plataforma);
+  res.setHeader('Content-Type', tipo);
+  res.download(ruta, nombre);
+}));
 rutasPublico.get('/enlaces/:id', asincrono((req, res) => res.json(obtenerEnlacePublico(Number(req.params.id)))));
 rutasPublico.post('/enlaces/:id/demo/confirmar', asincrono((req, res) => res.json(confirmarDemo(Number(req.params.id)))));
 rutasPublico.get('/enlaces/:id/culqi', asincrono((req, res) => res.json(culqiDatosCheckout(Number(req.params.id)))));

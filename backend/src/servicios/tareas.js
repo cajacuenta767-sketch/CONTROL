@@ -1,7 +1,7 @@
 import { mkdirSync, readdirSync, statSync, unlinkSync, existsSync } from 'node:fs';
 import { resolve, dirname, basename } from 'node:path';
 import { obtenerDb, ajuste, ajusteNumero, ahoraSql, hoyLocal, modZona, desfaseHoras } from '../db.js';
-import { config } from '../config.js';
+import { config, dirDatos } from '../config.js';
 import { auditar } from './auditoria.js';
 import { actualizarEstadosPorFecha } from './licencias.js';
 import { enviarCorreo, plantilla } from './correo.js';
@@ -168,7 +168,7 @@ export async function renovacionesAutomaticas() {
 
 /* ---------- 4. Respaldos ---------- */
 
-export const DIR_RESPALDOS = resolve(dirname(config.rutaBaseDatos === ':memory:' ? resolve('datos/control.db') : config.rutaBaseDatos), 'respaldos');
+export const DIR_RESPALDOS = resolve(dirDatos(), 'respaldos');
 
 export function crearRespaldo({ manual = false } = {}) {
   mkdirSync(DIR_RESPALDOS, { recursive: true });

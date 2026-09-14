@@ -1,0 +1,8 @@
+{
+  "appId": "com.agencia.control",
+  "appName": "CONTROL",
+  "webDir": "www",
+  "server": { "androidScheme": "https", "allowNavigation": ["*"] },
+  "android": { "allowMixedContent": false, "backgroundColor": "#0f172a" },
+  "plugins": { "SplashScreen": { "backgroundColor": "#0f172a", "launchAutoHide": true } }
+}

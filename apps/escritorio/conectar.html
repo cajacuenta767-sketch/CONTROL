@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Conectar · CONTROL</title>
+<style>
+body{margin:0;font-family:Inter,system-ui,sans-serif;background:linear-gradient(160deg,#0f172a,#1e293b 60%,#1d4ed8 160%);color:#e2e8f0;min-height:100vh;display:grid;place-items:center}
+.c{background:#fff;color:#1f2937;border-radius:14px;padding:28px 30px;width:min(440px,92vw);box-shadow:0 20px 60px rgba(0,0,0,.4)}
+.logo{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#3b82f6,#1d4ed8);display:grid;place-items:center;color:#fff;font-weight:800;font-size:20px;margin-bottom:14px}
+h1{font-size:20px;margin:0 0 4px}p{margin:0 0 16px;color:#6b7280;font-size:14px;line-height:1.45}
+label{font-size:13px;font-weight:600;display:block;margin-bottom:6px}
+input{width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid #e5e7eb;border-radius:8px;font-size:15px}
+button{width:100%;margin-top:12px;background:#1d4ed8;color:#fff;border:0;border-radius:8px;padding:11px;font-size:15px;font-weight:600;cursor:pointer}
+button:disabled{opacity:.6}.err{background:#fee2e2;color:#b91c1c;padding:10px 12px;border-radius:8px;font-size:13px;margin-top:12px;display:none}
+.pie{font-size:12px;color:#6b7280;margin-top:16px;text-align:center}
+</style></head><body>
+<div class="c">
+  <div class="logo">C</div>
+  <h1>Conectar con tu CONTROL</h1>
+  <p>Escribe la dirección del panel de tu agencia. Se guarda en este equipo; podrás cambiarla desde el menú.</p>
+  <label for="s">Dirección del panel</label>
+  <input id="s" placeholder="https://control.tuagencia.com" autofocus>
+  <button id="b">Conectar</button>
+  <div class="err" id="e"></div>
+  <p class="pie">CONTROL de escritorio · los datos viven en tu servidor, no en esta PC.</p>
+</div>
+<script>
+  const q = new URLSearchParams(location.search); const s = document.getElementById('s'), b = document.getElementById('b'), e = document.getElementById('e');
+  if (q.get('actual')) s.value = q.get('actual'); if (q.get('error')) { e.textContent = q.get('error'); e.style.display = 'block'; }
+  async function ir() { b.disabled = true; b.textContent = 'Conectando…'; e.style.display = 'none';
+    const r = await window.controlEscritorio.conectar(s.value);
+    if (!r.ok) { e.textContent = r.error; e.style.display = 'block'; b.disabled = false; b.textContent = 'Conectar'; } }
+  b.onclick = ir; s.onkeydown = (ev) => { if (ev.key === 'Enter') ir(); };
+</script></body></html>

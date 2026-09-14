@@ -87,7 +87,7 @@ export function Login() {
                 {error && <div className="error" role="alert">{error}</div>}
                 <button type="submit" className="btn" disabled={cargando}>{cargando ? 'Entrando…' : 'Entrar'}</button>
               </form>
-              <p className="pie"><Link to="/recuperar">¿Olvidaste tu contraseña?</Link></p>
+              <p className="pie"><Link to="/descargar">Descargar la app para celular y PC</Link> · <Link to="/recuperar">¿Olvidaste tu contraseña?</Link></p>
             </>
           )}
         </div>

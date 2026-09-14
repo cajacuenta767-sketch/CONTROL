@@ -83,7 +83,16 @@ chequeo responde error si la base de datos falla o las tareas automáticas se de
 | Integrar el SDK en cada producto (`sdk/` y `docs/02-integracion-productos.md`) | Sin esto, los productos no validan licencias |
 | Revisar los precios de lista | Lista de precios › Editar (ya están cargados los cuatro niveles) |
 
-## 9. Equipo
+## 9. Apps para celular y PC
+
+1. En GitHub: **Actions › Apps (Windows y Android) › Run workflow** con la versión `1.0.0`.
+2. Cuando termine, en **Ajustes › Aplicaciones** sube el `.exe` y el `.apk` del Release (o pega sus URLs).
+3. Comparte `https://TU-DOMINIO/descargar` con tu equipo.
+
+Opcional: keystore de Android (para firmar como release) y certificado de firma de código
+de Windows (para evitar el aviso de SmartScreen). Detalle en `docs/07-apps-movil-y-escritorio.md`.
+
+## 10. Equipo
 
 - Crea a cada vendedor en **Equipo** con su comisión (20 % por defecto), tope diario y meta.
 - Crea un usuario **Contador** para quien lleve los libros y uno **Soporte** si alguien

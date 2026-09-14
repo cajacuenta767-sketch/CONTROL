@@ -255,3 +255,20 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--enfoque); b
 .tablero-pantalla h1 { font-size: 30px; } .tablero-pantalla .ranking-monto { font-size: 32px; } .tablero-pantalla .ranking-puesto { font-size: 40px; }
 .sin-conexion { background: var(--mal); color: #fff; text-align: center; padding: 6px; font-size: 13px; position: sticky; top: 0; z-index: 45; }
 .material-capturas { display: flex; gap: 8px; flex-wrap: wrap; } .material-capturas img { max-width: 220px; border-radius: 8px; border: 1px solid var(--borde); }
+
+/* ---------- Landing de descarga ---------- */
+.landing { min-height: 100vh; background: var(--fondo); color: var(--texto); display: flex; flex-direction: column; }
+.landing-cab { display: flex; justify-content: space-between; align-items: center; padding: 14px 24px; background: var(--lateral); color: #fff; }
+.landing-cab .marca { font-weight: 700; letter-spacing: .06em; display: flex; align-items: center; gap: 10px; }
+.landing-cab nav { display: flex; gap: 16px; } .landing-cab nav a { color: #cbd5e1; font-size: 14px; }
+.landing-hero { display: grid; grid-template-columns: 1.2fr 1fr; gap: 32px; align-items: center; padding: 56px 24px 32px; width: min(1080px, 100%); margin: 0 auto; box-sizing: border-box; }
+.landing-hero h1 { font-size: 36px; line-height: 1.15; margin-bottom: 12px; } .landing-hero p { font-size: 17px; color: var(--texto-suave); line-height: 1.5; }
+.landing-botones { display: flex; gap: 10px; flex-wrap: wrap; margin: 20px 0 10px; } .landing-botones .btn { padding: 12px 18px; font-size: 15px; }
+.landing-telefono { display: flex; justify-content: center; }
+.landing-telefono .pantalla { width: 240px; height: 460px; border-radius: 32px; background: #0f172a; border: 8px solid #1e293b; padding: 20px 14px; box-shadow: 0 30px 60px rgba(0,0,0,.35); display: flex; flex-direction: column; gap: 10px; }
+.pantalla-cab { color: #fff; font-weight: 700; letter-spacing: .08em; text-align: center; margin-bottom: 6px; }
+.pantalla-tarjeta { background: #111a2e; border: 1px solid #243047; border-radius: 12px; padding: 10px 12px; color: #fff; } .pantalla-tarjeta small { display: block; color: #94a3b8; font-size: 11px; text-transform: uppercase; } .pantalla-tarjeta strong { font-size: 20px; }
+.pantalla-boton { margin-top: auto; background: #1d4ed8; color: #fff; text-align: center; border-radius: 10px; padding: 11px; font-weight: 600; }
+.landing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; width: min(1080px, 100%); margin: 0 auto; padding: 8px 24px 24px; box-sizing: border-box; }
+.landing-card { background: var(--panel); border: 1px solid var(--borde); border-radius: var(--radio); padding: 18px 20px; } .landing-card h2 { font-size: 18px; margin-bottom: 8px; } .landing-card ol { padding-left: 18px; margin: 0; line-height: 1.5; } .landing-card li { margin-bottom: 6px; }
+@media (max-width: 800px) { .landing-hero { grid-template-columns: 1fr; padding-top: 28px; } .landing-hero h1 { font-size: 28px; } .landing-telefono { display: none; } }

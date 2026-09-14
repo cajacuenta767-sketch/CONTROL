@@ -573,6 +573,15 @@ const MIGRACIONES = [
         ('monitor_url', '');
     `,
   },
+  {
+    version: 5,
+    sql: `
+      INSERT OR IGNORE INTO ajustes (clave, valor) VALUES
+        ('descarga_version', '1.0.0'),
+        ('descarga_android_url', ''), ('descarga_windows_url', ''), ('descarga_windows_portable_url', ''),
+        ('descarga_android_archivo', ''), ('descarga_windows_archivo', ''), ('descarga_windows_portable_archivo', '');
+    `,
+  },
 ];
 
 function migrar(d) {

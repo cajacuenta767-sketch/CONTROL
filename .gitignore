@@ -6,3 +6,6 @@ dist/
 backend/datos/
 backend/claves/
 .DS_Store
+apps/*/node_modules/
+apps/escritorio/dist/
+apps/android/android/
