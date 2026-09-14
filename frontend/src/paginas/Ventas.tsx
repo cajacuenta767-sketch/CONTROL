@@ -8,25 +8,30 @@ export function Ventas() {
   const { esGestor } = useSesion();
   const [params, setParams] = useSearchParams();
   const [ventas, setVentas] = useState<any[] | null>(null);
+  const [total, setTotal] = useState(0);
   const [equipo, setEquipo] = useState<any[]>([]);
   const nav = useNavigate();
   const filtros = Object.fromEntries(params.entries());
+  const pagina = Number(filtros.pagina || 1);
+  const POR_PAGINA = 50;
 
-  useEffect(() => { api.get<any[]>('/ventas', filtros).then(setVentas); }, [params]);
+  useEffect(() => {
+    api.get<{ filas: any[]; total: number }>('/ventas', { ...filtros, pagina, por_pagina: POR_PAGINA }).then((r) => { setVentas(r.filas); setTotal(r.total); });
+  }, [params]);
   useEffect(() => { if (esGestor) api.get<any[]>('/usuarios').then(setEquipo); }, [esGestor]);
-  const set = (cambios: Record<string, string>) => { const p = new URLSearchParams(params); for (const [k, v] of Object.entries(cambios)) { if (v) p.set(k, v); else p.delete(k); } setParams(p); };
+  const set = (cambios: Record<string, string>) => { const p = new URLSearchParams(params); for (const [k, v] of Object.entries(cambios)) { if (v) p.set(k, v); else p.delete(k); } if (!('pagina' in cambios)) p.delete('pagina'); setParams(p); };
   const rango = (desde: string, hasta: string) => set({ desde, hasta });
   const esRango = (d: string, h: string) => filtros.desde === d && (filtros.hasta || '') === h;
 
   const lista = ventas || [];
-  const total = lista.filter((v) => v.estado !== 'anulada').reduce((s, v) => s + (v.total_base ?? v.total), 0);
+  const totalPagina = lista.filter((v) => v.estado !== 'anulada').reduce((s, v) => s + (v.total_base ?? v.total), 0);
   const pagado = lista.reduce((s, v) => s + (v.pagado / (v.tipo_cambio || 1)), 0);
-  const hayFiltros = Object.keys(filtros).length > 0;
+  const hayFiltros = Object.keys(filtros).filter((k) => k !== 'pagina').length > 0;
 
   return (
     <>
       <header>
-        <div><h1>Ventas</h1><p>{lista.length} venta(s) · total {dinero(total)} · cobrado {dinero(pagado)} <span className="suave pequeno">(equivalente en moneda base)</span></p></div>
+        <div><h1>Ventas</h1><p>{total} venta(s){total > lista.length ? ` · mostrando ${lista.length}` : ''} · total {dinero(totalPagina)} · cobrado {dinero(pagado)} <span className="suave pequeno">(equivalente en moneda base{total > lista.length ? ', de esta página' : ''})</span></p></div>
         <div className="fila">
           <ExportarCsv nombre="ventas" filas={lista.map((v) => ({ numero: v.numero, fecha: v.creado_en, cliente: v.cliente_nombre, empresa: v.cliente_empresa, producto: v.producto_nombre, plan: v.plan_tipo, cantidad: v.cantidad, total: v.total, pagado: v.pagado, estado: v.estado, vendedor: v.vendedor_nombre }))} />
           <Link to="/ventas/nueva" className="btn">+ Nueva venta</Link>
@@ -53,7 +58,8 @@ export function Ventas() {
           <input type="date" value={filtros.hasta || ''} onChange={(e) => set({ hasta: e.target.value })} title="Hasta" />
           {hayFiltros && <button className="btn-texto" onClick={() => setParams({})}>Limpiar</button>}
         </div>
-        <Tabla filas={lista} clave={(v) => v.id} onFila={(v) => nav(`/ventas/${v.id}`)}
+        <Tabla filas={lista} clave={(v) => v.id} onFila={(v) => nav(`/ventas/${v.id}`)} titulo="Ventas"
+          servidor={{ pagina, total, porPagina: POR_PAGINA, onCambiar: (p) => set({ pagina: p > 1 ? String(p) : '' }) }}
           vacio={ventas === null ? 'Cargando…' : hayFiltros ? 'Ninguna venta coincide con los filtros' : <Vacio icono="🧾" titulo="Todavía no hay ventas" texto="Registra la primera venta y se emitirán sus licencias." accion={<Link to="/ventas/nueva" className="btn chico">+ Nueva venta</Link>} />}
           columnas={[
             { titulo: 'N.º', celda: (v) => v.numero, orden: (v) => v.id },

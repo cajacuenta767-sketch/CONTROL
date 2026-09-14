@@ -153,3 +153,39 @@ export const ETIQUETA_ESTADO: Record<string, string> = {
 export const ETIQUETA_METODO: Record<string, string> = {
   efectivo: 'Efectivo', transferencia: 'Transferencia', yape: 'Yape', plin: 'Plin', tarjeta: 'Tarjeta', paypal: 'PayPal', stripe: 'Stripe', otro: 'Otro',
 };
+
+/* ---------- Portal del cliente (token propio, sin redirección a /login) ---------- */
+const CLAVE_PORTAL = 'control.portal';
+export const sesionPortal = {
+  token: (): string | null => { try { return localStorage.getItem(CLAVE_PORTAL); } catch { return null; } },
+  guardar: (t: string) => { try { localStorage.setItem(CLAVE_PORTAL, t); } catch { /* ignorar */ } },
+  cerrar: () => { try { localStorage.removeItem(CLAVE_PORTAL); } catch { /* ignorar */ } },
+};
+
+async function llamarPortal<T>(metodo: string, ruta: string, cuerpo?: unknown): Promise<T> {
+  const cabeceras: Record<string, string> = { 'Content-Type': 'application/json' };
+  const t = sesionPortal.token();
+  if (t) cabeceras.Authorization = `Bearer ${t}`;
+  let r: Response;
+  try { r = await fetch(`/api/v1/portal${ruta}`, { method: metodo, headers: cabeceras, body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo) }); }
+  catch { throw new ErrorApi(0, null); }
+  const datos = r.status === 204 ? null : await r.json().catch(() => null);
+  if (!r.ok) {
+    if (r.status === 401 && ruta !== '/acceso') sesionPortal.cerrar();
+    throw new ErrorApi(r.status, datos);
+  }
+  return datos as T;
+}
+
+export const apiPortal = {
+  get: <T,>(ruta: string) => llamarPortal<T>('GET', ruta),
+  post: <T,>(ruta: string, cuerpo?: unknown) => llamarPortal<T>('POST', ruta, cuerpo ?? {}),
+  abrir: async (ruta: string) => {
+    const t = sesionPortal.token();
+    const r = await fetch(`/api/v1/portal${ruta}`, { headers: t ? { Authorization: `Bearer ${t}` } : {} });
+    if (!r.ok) throw new ErrorApi(r.status, await r.json().catch(() => null));
+    const url = URL.createObjectURL(await r.blob());
+    window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  },
+};

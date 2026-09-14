@@ -1,4 +1,4 @@
-import { Component, useEffect, useMemo, useState, type ReactNode, type FormEvent } from 'react';
+import { Component, useEffect, useMemo, useRef, useState, type ReactNode, type FormEvent } from 'react';
 import { descargarCsv, ErrorApi, ETIQUETA_ESTADO, whatsapp } from '../api';
 import { useAvisar } from './toast';
 
@@ -18,7 +18,8 @@ export function Tarjeta({ titulo, children, acciones, className = '' }: { titulo
 
 export function Indicador({ etiqueta, valor, detalle, tono, onClick }: { etiqueta: string; valor: ReactNode; detalle?: ReactNode; tono?: 'ok' | 'alerta' | 'neutro'; onClick?: () => void }) {
   return (
-    <div className={`indicador ${tono || ''} ${onClick ? 'clic' : ''}`} onClick={onClick} role={onClick ? 'button' : undefined} tabIndex={onClick ? 0 : undefined}>
+    <div className={`indicador ${tono || ''} ${onClick ? 'clic' : ''}`} onClick={onClick} role={onClick ? 'button' : undefined} tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } } : undefined}>
       <span className="indicador-etiqueta">{etiqueta}</span>
       <strong className="indicador-valor">{valor}</strong>
       {detalle && <span className="indicador-detalle">{detalle}</span>}
@@ -43,12 +44,19 @@ export interface Columna<T> {
   orden?: (f: T) => string | number | null | undefined;
 }
 
-export function Tabla<T>({ columnas, filas, vacio = 'Sin registros', clave, onFila, porPagina = 50 }: {
+export interface PaginacionServidor { pagina: number; total: number; porPagina: number; onCambiar: (pagina: number) => void }
+
+export function Tabla<T>({ columnas, filas, vacio = 'Sin registros', clave, onFila, porPagina = 50, servidor, titulo }: {
   columnas: Columna<T>[]; filas: T[]; vacio?: ReactNode; clave: (f: T) => string | number; onFila?: (f: T) => void; porPagina?: number;
+  /** Si se indica, la paginación la hace el servidor y `filas` es la página actual. */
+  servidor?: PaginacionServidor; titulo?: string;
 }) {
   const [orden, setOrden] = useState<{ i: number; asc: boolean } | null>(null);
-  const [pagina, setPagina] = useState(1);
-  useEffect(() => { setPagina(1); }, [filas]);
+  const [paginaLocal, setPaginaLocal] = useState(1);
+  useEffect(() => { setPaginaLocal(1); }, [filas]);
+  const pagina = servidor ? servidor.pagina : paginaLocal;
+  const setPagina = servidor ? servidor.onCambiar : setPaginaLocal;
+  if (servidor) porPagina = servidor.porPagina;
   const ordenadas = useMemo(() => {
     if (!orden || !columnas[orden.i]?.orden) return filas;
     const f = columnas[orden.i].orden!;
@@ -58,11 +66,12 @@ export function Tabla<T>({ columnas, filas, vacio = 'Sin registros', clave, onFi
       return orden.asc ? r : -r;
     });
   }, [filas, orden, columnas]);
-  const paginas = Math.max(1, Math.ceil(ordenadas.length / porPagina));
-  const visibles = ordenadas.slice((pagina - 1) * porPagina, pagina * porPagina);
+  const totalFilas = servidor ? servidor.total : ordenadas.length;
+  const paginas = Math.max(1, Math.ceil(totalFilas / porPagina));
+  const visibles = servidor ? ordenadas : ordenadas.slice((pagina - 1) * porPagina, pagina * porPagina);
   return (
     <div className="tabla-envoltorio">
-      <table className="tabla">
+      <table className="tabla" aria-label={titulo}>
         <thead>
           <tr>{columnas.map((c, i) => (
             <th key={c.titulo || i} style={{ width: c.ancho }} className={`${c.alinear || ''} ${c.orden ? 'ordenable' : ''}`}
@@ -74,16 +83,17 @@ export function Tabla<T>({ columnas, filas, vacio = 'Sin registros', clave, onFi
         <tbody>
           {visibles.length === 0 && <tr><td colSpan={columnas.length} className="vacio">{vacio}</td></tr>}
           {visibles.map((f) => (
-            <tr key={clave(f)} onClick={onFila ? () => onFila(f) : undefined} className={onFila ? 'clic' : ''}>
+            <tr key={clave(f)} onClick={onFila ? () => onFila(f) : undefined} className={onFila ? 'clic' : ''} tabIndex={onFila ? 0 : undefined}
+              onKeyDown={onFila ? (e) => { if (e.key === 'Enter' && e.target === e.currentTarget) onFila(f); } : undefined}>
               {columnas.map((c, i) => <td key={c.titulo || i} className={c.alinear}>{c.celda(f)}</td>)}
             </tr>
           ))}
         </tbody>
       </table>
       {paginas > 1 && (
-        <div className="paginacion">
+        <div className="paginacion" role="navigation" aria-label="Paginación">
           <button className="btn secundario chico" disabled={pagina <= 1} onClick={() => setPagina(pagina - 1)}>Anterior</button>
-          <span className="suave pequeno">{(pagina - 1) * porPagina + 1}–{Math.min(pagina * porPagina, ordenadas.length)} de {ordenadas.length}</span>
+          <span className="suave pequeno">{(pagina - 1) * porPagina + 1}–{Math.min(pagina * porPagina, totalFilas)} de {totalFilas}</span>
           <button className="btn secundario chico" disabled={pagina >= paginas} onClick={() => setPagina(pagina + 1)}>Siguiente</button>
         </div>
       )}
@@ -91,19 +101,33 @@ export function Tabla<T>({ columnas, filas, vacio = 'Sin registros', clave, onFi
   );
 }
 
+const FOCABLES = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 export function Modal({ titulo, abierto, cerrar, children }: { titulo: string; abierto: boolean; cerrar: () => void; children: ReactNode }) {
+  const caja = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!abierto) return;
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') cerrar(); };
+    const anterior = document.activeElement as HTMLElement | null;
+    const h = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { cerrar(); return; }
+      if (e.key !== 'Tab' || !caja.current) return;
+      const f = Array.from(caja.current.querySelectorAll<HTMLElement>(FOCABLES)).filter((el) => el.offsetParent !== null);
+      if (!f.length) return;
+      const primero = f[0], ultimo = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === primero) { e.preventDefault(); ultimo.focus(); }
+      else if (!e.shiftKey && document.activeElement === ultimo) { e.preventDefault(); primero.focus(); }
+    };
     window.addEventListener('keydown', h);
     document.body.style.overflow = 'hidden';
-    return () => { window.removeEventListener('keydown', h); document.body.style.overflow = ''; };
+    // Enfocar el primer control (si el contenido no puso autoFocus).
+    const t = setTimeout(() => { if (caja.current && !caja.current.contains(document.activeElement)) (caja.current.querySelector<HTMLElement>(FOCABLES) || caja.current).focus(); }, 0);
+    return () => { clearTimeout(t); window.removeEventListener('keydown', h); document.body.style.overflow = ''; anterior?.focus?.(); };
   }, [abierto, cerrar]);
   if (!abierto) return null;
   return (
     <div className="modal-fondo" onClick={cerrar}>
-      <div className="modal" role="dialog" aria-modal="true" aria-label={titulo} onClick={(e) => e.stopPropagation()}>
-        <header><h3>{titulo}</h3><button className="btn-texto" onClick={cerrar} aria-label="Cerrar">✕</button></header>
+      <div className="modal" role="dialog" aria-modal="true" aria-labelledby="modal-titulo" ref={caja} tabIndex={-1} onClick={(e) => e.stopPropagation()}>
+        <header><h3 id="modal-titulo">{titulo}</h3><button className="btn-texto" onClick={cerrar} aria-label="Cerrar">✕</button></header>
         {children}
       </div>
     </div>
@@ -183,7 +207,7 @@ export function BotonAccion({ texto, onClick, className = 'btn', exito }: { text
   );
 }
 
-export function Cargando() { return <div className="cargando"><span className="spinner" /> Cargando…</div>; }
+export function Cargando() { return <div className="cargando" role="status" aria-live="polite"><span className="spinner" aria-hidden /> Cargando…</div>; }
 
 export function Aviso({ tipo = 'info', children }: { tipo?: 'info' | 'ok' | 'alerta' | 'error'; children: ReactNode }) {
   return <div className={`aviso ${tipo}`}>{children}</div>;

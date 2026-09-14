@@ -3,7 +3,10 @@
   "private": true,
   "version": "0.1.0",
   "description": "CONTROL · Panel central de licencias, ventas, comisiones y caja para la agencia",
-  "workspaces": ["backend", "frontend"],
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
   "scripts": {
     "dev": "concurrently -n api,web -c blue,green \"npm run dev -w backend\" \"npm run dev -w frontend\"",
     "dev:api": "npm run dev -w backend",
@@ -11,7 +14,8 @@
     "seed": "npm run seed -w backend",
     "test": "npm test -w backend",
     "build": "npm run build -w frontend",
-    "start": "npm start -w backend"
+    "start": "npm start -w backend",
+    "e2e": "npm run build && npm run e2e -w frontend"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

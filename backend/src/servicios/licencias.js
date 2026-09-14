@@ -54,7 +54,15 @@ export function listarLicencias(usuario, filtros = {}) {
   if (filtros.vence_antes) { condiciones.push('l.vence_en IS NOT NULL AND l.vence_en <= ?'); params.push(filtros.vence_antes); }
   if (filtros.q) { condiciones.push('(l.clave LIKE ? OR c.nombre LIKE ? OR c.empresa LIKE ? OR l.etiqueta LIKE ?)'); params.push(...Array(4).fill(`%${filtros.q}%`)); }
   const where = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : '';
-  return obtenerDb().prepare(`${BASE} ${where} ORDER BY l.id DESC LIMIT 1000`).all(...params);
+  const db = obtenerDb();
+  if (filtros.pagina) {
+    const porPagina = Math.min(200, Number(filtros.por_pagina) || 50);
+    const total = db.prepare(`SELECT COUNT(*) AS c FROM licencias l JOIN clientes c ON c.id = l.cliente_id ${where}`).get(...params).c;
+    const conteo = Object.fromEntries(db.prepare(`SELECT l.estado, COUNT(*) AS n FROM licencias l ${!esGestor(usuario) ? 'WHERE l.vendedor_id = ?' : ''} GROUP BY l.estado`).all(...(!esGestor(usuario) ? [usuario.id] : [])).map((f) => [f.estado, f.n]));
+    const filas = db.prepare(`${BASE} ${where} ORDER BY l.id DESC LIMIT ? OFFSET ?`).all(...params, porPagina, (Number(filtros.pagina) - 1) * porPagina);
+    return { filas, total, pagina: Number(filtros.pagina), por_pagina: porPagina, conteo };
+  }
+  return db.prepare(`${BASE} ${where} ORDER BY l.id DESC LIMIT 1000`).all(...params);
 }
 
 export function obtenerLicencia(id, usuario) {

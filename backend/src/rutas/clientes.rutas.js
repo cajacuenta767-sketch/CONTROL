@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { validar } from '../middleware/validar.js';
 import { requerirAuth } from '../middleware/auth.js';
 import { asincrono } from '../middleware/errores.js';
-import { listarClientes, obtenerCliente, crearCliente, actualizarCliente } from '../servicios/clientes.js';
+import { listarClientes, obtenerCliente, crearCliente, actualizarCliente, historialCliente } from '../servicios/clientes.js';
 import { listarLicencias } from '../servicios/licencias.js';
 import { listarVentas } from '../servicios/ventas.js';
 
@@ -27,5 +27,6 @@ rutasClientes.get('/:id', asincrono((req, res) => {
   const cliente = obtenerCliente(id, req.usuario);
   res.json({ ...cliente, licencias: listarLicencias(req.usuario, { cliente_id: id }), ventas: listarVentas(req.usuario, { cliente_id: id }) });
 }));
+rutasClientes.get('/:id/historial', asincrono((req, res) => res.json(historialCliente(Number(req.params.id), req.usuario))));
 rutasClientes.post('/', validar(esquema), asincrono((req, res) => res.status(201).json(crearCliente(req.datos, req.usuario))));
 rutasClientes.patch('/:id', validar(esquema.partial()), asincrono((req, res) => res.json(actualizarCliente(Number(req.params.id), req.datos, req.usuario))));

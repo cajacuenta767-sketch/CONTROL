@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, dinero, fecha } from '../api';
 import { useSesion } from '../sesion';
-import { Campo, Cargando, Clave, Estado, Formulario, Modal, Tabla, Tarjeta } from '../componentes/ui';
+import { Campo, Cargando, Clave, Estado, Formulario, Modal, Tabla, Tarjeta, Vacio } from '../componentes/ui';
+
+const TIPO_EVENTO: Record<string, string> = { venta: 'Venta', pago: 'Pago', activacion: 'Activación', ticket: 'Ticket', licencia: 'Licencia' };
 
 export function ClienteDetalle() {
   const { id } = useParams();
@@ -12,6 +14,8 @@ export function ClienteDetalle() {
   const [editar, setEditar] = useState(false);
   const [f, setF] = useState<any>({});
   const [equipo, setEquipo] = useState<any[]>([]);
+  const [historial, setHistorial] = useState<any[] | null>(null);
+  useEffect(() => { api.get<any[]>(`/clientes/${id}/historial`).then(setHistorial).catch(() => setHistorial([])); }, [id]);
   const cargar = useCallback(() => api.get<any>(`/clientes/${id}`).then((x) => { setC(x); setF({ nombre: x.nombre, empresa: x.empresa || '', telefono: x.telefono || '', email: x.email || '', pais: x.pais || '', notas: x.notas || '', vendedor_id: x.vendedor_id || '' }); }), [id]);
   useEffect(() => { cargar(); }, [cargar]);
   useEffect(() => { if (esGestor) api.get<any[]>('/usuarios').then(setEquipo); }, [esGestor]);
@@ -52,6 +56,19 @@ export function ClienteDetalle() {
             { titulo: 'Total', celda: (v: any) => dinero(v.total, v.moneda), alinear: 'derecha' },
             { titulo: 'Estado', celda: (v: any) => <Estado valor={v.estado} /> },
           ]} />
+        </Tarjeta>
+        <Tarjeta titulo="Línea de tiempo" acciones={<span className="suave pequeno">ventas, pagos, activaciones, tickets</span>}>
+          {historial === null ? <Cargando /> : historial.length === 0 ? <Vacio icono="🕓" titulo="Sin actividad todavía" /> : (
+            <ul className="linea-tiempo">
+              {historial.map((e, i) => (
+                <li key={i} className={e.tipo} style={{ cursor: e.tipo === 'venta' || e.tipo === 'pago' || e.tipo === 'activacion' || e.tipo === 'licencia' ? 'pointer' : undefined }}
+                  onClick={() => { if (e.tipo === 'venta' || e.tipo === 'pago') nav(`/ventas/${e.ref_id}`); else if (e.tipo === 'activacion' || e.tipo === 'licencia') nav(`/licencias/${e.ref_id}`); else if (e.tipo === 'ticket') nav(`/tickets/${e.ref_id}`); }}>
+                  <div className="cuando">{fecha(e.fecha, true)} · {TIPO_EVENTO[e.tipo] || e.tipo}</div>
+                  <div><strong>{e.titulo}</strong>{e.detalle && <span className="suave"> · {e.detalle}</span>}</div>
+                </li>
+              ))}
+            </ul>
+          )}
         </Tarjeta>
       </div>
       <Modal titulo="Editar cliente" abierto={editar} cerrar={() => setEditar(false)}>

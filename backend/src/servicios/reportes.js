@@ -100,3 +100,37 @@ export function resumen(usuario) {
   }
   return salida;
 }
+
+
+/** Búsqueda global: clientes, ventas y licencias (respetando el alcance del rol). */
+export function buscar(usuario, q) {
+  const db = obtenerDb();
+  const like = `%${String(q || '').trim()}%`;
+  if (like.length < 4) return { clientes: [], ventas: [], licencias: [] };
+  const propio = !esGestor(usuario);
+  const clientes = db.prepare(`SELECT id, nombre, empresa, telefono FROM clientes WHERE (nombre LIKE ? OR empresa LIKE ? OR email LIKE ? OR telefono LIKE ?) ${propio ? 'AND vendedor_id = ?' : ''} ORDER BY id DESC LIMIT 6`).all(like, like, like, like, ...(propio ? [usuario.id] : []));
+  const ventas = db.prepare(`SELECT v.id, v.numero, v.total, v.moneda, v.estado, c.nombre AS cliente FROM ventas v JOIN clientes c ON c.id = v.cliente_id WHERE (v.numero LIKE ? OR c.nombre LIKE ?) ${propio ? 'AND v.vendedor_id = ?' : ''} ORDER BY v.id DESC LIMIT 6`).all(like, like, ...(propio ? [usuario.id] : []));
+  const licencias = db.prepare(`SELECT l.id, l.clave, l.etiqueta, l.estado, c.nombre AS cliente, pr.nombre AS producto FROM licencias l JOIN clientes c ON c.id = l.cliente_id JOIN productos pr ON pr.id = l.producto_id WHERE (l.clave LIKE ? OR l.etiqueta LIKE ? OR c.nombre LIKE ?) ${propio ? 'AND l.vendedor_id = ?' : ''} ORDER BY l.id DESC LIMIT 6`).all(like, like, like, ...(propio ? [usuario.id] : []));
+  return { clientes, ventas, licencias };
+}
+
+/** Series mensuales para gráficos: cobros por producto y por vendedor (moneda base). */
+export function series(usuario, { meses = 6 } = {}) {
+  const db = obtenerDb();
+  const z = modZona();
+  const n = Math.min(24, Math.max(1, Number(meses) || 6));
+  const propio = !esGestor(usuario);
+  const filtro = propio ? 'AND v.vendedor_id = ?' : '';
+  const p = propio ? [usuario.id] : [];
+  const desde = new Date(); desde.setUTCDate(1); desde.setUTCMonth(desde.getUTCMonth() - (n - 1));
+  const desdeMes = desde.toISOString().slice(0, 7);
+  const meses_lista = []; for (let i = 0; i < n; i++) { const d = new Date(desde); d.setUTCMonth(desde.getUTCMonth() + i); meses_lista.push(d.toISOString().slice(0, 7)); }
+  const porProducto = db.prepare(`SELECT strftime('%Y-%m', pg.confirmado_en, ?) AS mes, pr.nombre AS serie, COALESCE(SUM(COALESCE(pg.monto_base, pg.monto)),0) AS total
+    FROM pagos pg JOIN ventas v ON v.id = pg.venta_id JOIN productos pr ON pr.id = v.producto_id
+    WHERE pg.estado = 'confirmado' AND strftime('%Y-%m', pg.confirmado_en, ?) >= ? ${filtro} GROUP BY mes, pr.id ORDER BY mes`).all(z, z, desdeMes, ...p);
+  const porVendedor = propio ? [] : db.prepare(`SELECT strftime('%Y-%m', pg.confirmado_en, ?) AS mes, u.nombre AS serie, COALESCE(SUM(COALESCE(pg.monto_base, pg.monto)),0) AS total
+    FROM pagos pg JOIN ventas v ON v.id = pg.venta_id JOIN usuarios u ON u.id = v.vendedor_id
+    WHERE pg.estado = 'confirmado' AND strftime('%Y-%m', pg.confirmado_en, ?) >= ? GROUP BY mes, u.id ORDER BY mes`).all(z, z, desdeMes);
+  const nuevasLicencias = db.prepare(`SELECT strftime('%Y-%m', l.activa_desde, ?) AS mes, COUNT(*) AS total FROM licencias l JOIN ventas v ON v.id = l.venta_id WHERE l.activa_desde IS NOT NULL AND strftime('%Y-%m', l.activa_desde, ?) >= ? ${filtro} GROUP BY mes`).all(z, z, desdeMes, ...p);
+  return { meses: meses_lista, moneda_base: ajuste('moneda_base', 'USD'), por_producto: porProducto, por_vendedor: porVendedor, licencias_nuevas: nuevasLicencias };
+}
