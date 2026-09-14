@@ -198,8 +198,9 @@ try {
     const publica = await navegador.newPage({ viewport: { width: 1200, height: 900 } });
     publica.on('pageerror', (e) => errores.push(`pageerror: ${e.message}`));
     await publica.goto(`${base}/descargar`);
-    await publica.waitForSelector('.landing-hero h1');
-    if (await publica.locator('a:has-text("Descargar para Windows")').count()) throw new Error('no debería haber instalador todavía');
+    await publica.waitForSelector('.dl-hero h1');
+    const hrefRelease = await publica.getAttribute('.dl-hero a:has-text("Descargar para Windows")', 'href');
+    if (!/releases\/download/.test(hrefRelease || '')) throw new Error(`sin instalador por defecto: ${hrefRelease}`);
     await publica.close();
     // el dueño sube un instalador y la landing lo ofrece
     await pagina.goto(`${base}/ajustes`);
@@ -210,8 +211,8 @@ try {
     await pagina.waitForSelector('text=Archivo subido');
     const publica2 = await navegador.newPage({ viewport: { width: 1200, height: 900 }, acceptDownloads: true });
     await publica2.goto(`${base}/descargar`);
-    await publica2.waitForSelector('a:has-text("Descargar para Windows")');
-    const [descarga] = await Promise.all([publica2.waitForEvent('download'), publica2.click('a:has-text("Descargar para Windows")')]);
+    await publica2.waitForSelector('.dl-hero a:has-text("Descargar para Windows")');
+    const [descarga] = await Promise.all([publica2.waitForEvent('download'), publica2.click('.dl-hero a:has-text("Descargar para Windows")')]);
     if (descarga.suggestedFilename() !== 'CONTROL-Instalador.exe') throw new Error(`nombre inesperado: ${descarga.suggestedFilename()}`);
     await publica2.close();
   });

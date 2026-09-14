@@ -5,6 +5,8 @@ import { useAvisar } from '../componentes/toast';
 import { useSesion } from '../sesion';
 import { useAjustes } from '../ajustes';
 import { Aviso, BotonWhatsApp, Cargando, Estado, Indicador, Tabla, Tarjeta, Vacio } from '../componentes/ui';
+import { TarjetasDescarga } from '../componentes/descargas';
+import { usePwa } from '../pwa';
 
 interface Resumen {
   hoy: string; mes: string;
@@ -24,6 +26,8 @@ export function Panel() {
   const ajustes = useAjustes();
   const [r, setR] = useState<Resumen | null>(null);
   const [guiaVista, setGuiaVista] = useState(() => recordar.leer('guia_vista') === '1');
+  const [appsVistas, setAppsVistas] = useState(() => recordar.leer('apps_vistas') === '1');
+  const pwa = usePwa();
   const nav = useNavigate();
   useEffect(() => { api.get<Resumen>('/reportes/resumen').then(setR); }, []);
   if (!r) return <Cargando />;
@@ -52,6 +56,17 @@ export function Panel() {
           <span><strong>{esGestor ? 'Bienvenido al panel.' : `Bienvenido, ${usuario!.nombre.split(' ')[0]}.`}</strong> En dos minutos entiendes cómo se vende, qué gana cada uno y qué puedes hacer con tu rol.</span>
           <span className="fila" style={{ gap: 8 }}><Link to="/guia" className="btn chico">Ver la guía</Link><Link to="/precios" className="btn secundario chico">Precios y simulador</Link><button className="btn-texto" aria-label="Ocultar" onClick={() => { recordar.guardar('guia_vista', '1'); setGuiaVista(true); }}>✕</button></span>
         </div>
+      )}
+      {!appsVistas && !pwa.instalada && (
+        <Tarjeta titulo="Lleva CONTROL en tu celular y en tu PC" acciones={<button className="btn-texto" aria-label="Ocultar" onClick={() => { recordar.guardar('apps_vistas', '1'); setAppsVistas(true); }}>✕</button>}>
+          <div className="panel-apps">
+            <div>
+              <p style={{ margin: '0 0 6px' }}>La misma cuenta, los mismos datos: vende en la calle desde Android, trabaja en Windows sin abrir el navegador. Instalas una vez y listo.</p>
+              <p className="suave pequeno" style={{ margin: 0 }}>Al abrir la app te pedirá la dirección de este panel: <code className="clave">{window.location.origin}</code>. <Link to="/descargar">Guía completa</Link>.</p>
+            </div>
+            <TarjetasDescarga compacto />
+          </div>
+        </Tarjeta>
       )}
       {hayAlertas && (
         <Aviso tipo="alerta">

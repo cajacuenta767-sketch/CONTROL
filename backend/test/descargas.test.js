@@ -22,9 +22,11 @@ before(async () => {
 });
 after(() => { reiniciarDb(); if (existsSync(DIR_DESCARGAS)) rmSync(DIR_DESCARGAS, { recursive: true, force: true }); });
 
-test('landing de descarga: sin archivos no hay nada; con URL externa o archivo subido aparece; el archivo tiene prioridad', async () => {
+test('landing de descarga: siempre ofrece el Release publicado; URL propia o archivo subido lo reemplazan; el archivo tiene prioridad', async () => {
   let r = await request(app).get('/api/v1/publico/descargas');
-  assert.equal(r.status, 200); assert.equal(r.body.plataformas.android.disponible, false); assert.equal(r.body.version, '1.0.0');
+  assert.equal(r.status, 200); assert.equal(r.body.version, '1.0.0');
+  assert.equal(r.body.plataformas.android.disponible, true, 'sin configurar nada se ofrece el Release publicado');
+  assert.equal(r.body.plataformas.android.origen, 'publicado'); assert.match(r.body.plataformas.windows.url, /releases\/download/);
   guardarAjuste('descarga_android_url', 'https://github.com/x/y/releases/download/apps-v1.0.0/CONTROL-android.apk');
   r = await request(app).get('/api/v1/publico/descargas');
   assert.equal(r.body.plataformas.android.origen, 'externa'); assert.match(r.body.plataformas.android.url, /github\.com/);
@@ -49,6 +51,8 @@ test('landing de descarga: sin archivos no hay nada; con URL externa o archivo s
   // quitar
   r = await request(app).delete('/api/v1/sistema/descargas/android').set('Authorization', `Bearer ${tokenS}`);
   assert.equal(r.body.plataformas.android.origen, 'externa', 'vuelve a la URL externa');
+  r = await request(app).delete('/api/v1/sistema/descargas/windows').set('Authorization', `Bearer ${tokenS}`);
+  assert.equal(r.body.plataformas.windows.origen, 'publicado', 'sin archivo ni URL propia vuelve al Release');
   assert.ok(obtenerDb().prepare("SELECT 1 FROM auditoria WHERE accion = 'descargas.descarga'").get());
 });
 
@@ -60,7 +64,7 @@ test('los ajustes de las fases nuevas se leen y se guardan desde el panel (culqi
   assert.equal(r.status, 200);
   r = await request(app).get('/api/v1/publico/descargas');
   assert.equal(r.body.plataformas.android.url, 'https://ejemplo.test/CONTROL.apk');
-  assert.equal(r.body.plataformas.windows.origen, 'archivo', 'el archivo subido antes sigue teniendo prioridad');
+  assert.equal(r.body.plataformas.windows.origen, 'publicado', 'sin archivo ni URL propia se ofrece el Release');
   assert.equal(obtenerDb().prepare("SELECT valor FROM ajustes WHERE clave = 'telegram_chat_id'").get().valor, '42');
   assert.equal(obtenerDb().prepare("SELECT valor FROM ajustes WHERE clave = 'clave_privada_pem'").get().valor.startsWith('-----BEGIN'), true, 'la clave privada no se toca');
   assert.equal(obtenerDb().prepare("SELECT 1 FROM ajustes WHERE clave = 'inventado'").get(), undefined, 'no se crean claves nuevas');

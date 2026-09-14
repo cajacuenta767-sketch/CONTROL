@@ -12,6 +12,9 @@ import { auditar } from './auditoria.js';
  * (GitHub Releases). El archivo subido tiene prioridad.
  */
 export const DIR_DESCARGAS = resolve(dirDatos(), 'descargas');
+/** Instaladores publicados por el flujo "Apps" del repositorio: respaldo cuando el dueño no configuró nada. */
+const RELEASE_BASE = 'https://github.com/cajacuenta767-sketch/CONTROL/releases/download/apps-v1.0.0';
+export const DESCARGAS_POR_DEFECTO = { android: `${RELEASE_BASE}/CONTROL-android.apk`, windows: `${RELEASE_BASE}/CONTROL-Instalador-1.0.0.exe`, windows_portable: `${RELEASE_BASE}/CONTROL-Portable-1.0.0.exe` };
 export const PLATAFORMAS = {
   android: { nombre: 'CONTROL-android.apk', tipo: 'application/vnd.android.package-archive', ext: ['.apk'] },
   windows: { nombre: 'CONTROL-Instalador.exe', tipo: 'application/x-msdownload', ext: ['.exe', '.msi'] },
@@ -28,8 +31,9 @@ export function estadoDescargas() {
     const archivo = ajuste(`descarga_${clave}_archivo`, '');
     const ruta = archivo ? resolve(DIR_DESCARGAS, archivo) : null;
     const local = ruta && ruta.startsWith(DIR_DESCARGAS) && existsSync(ruta);
-    const url = local ? `/api/v1/publico/descargas/${clave}` : ajuste(`descarga_${clave}_url`, '') || null;
-    salida.plataformas[clave] = { disponible: Boolean(url), url, origen: local ? 'archivo' : url ? 'externa' : null, tamano: local ? statSync(ruta).size : null, nombre: def.nombre, actualizado_en: local ? statSync(ruta).mtime.toISOString() : null };
+    const externa = ajuste(`descarga_${clave}_url`, '');
+    const url = local ? `/api/v1/publico/descargas/${clave}` : externa || DESCARGAS_POR_DEFECTO[clave] || null;
+    salida.plataformas[clave] = { disponible: Boolean(url), url, origen: local ? 'archivo' : externa ? 'externa' : url ? 'publicado' : null, tamano: local ? statSync(ruta).size : null, nombre: def.nombre, actualizado_en: local ? statSync(ruta).mtime.toISOString() : null };
   }
   return salida;
 }

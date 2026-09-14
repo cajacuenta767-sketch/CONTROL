@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { ErrorApi, recordar } from '../api';
 import { useSesion } from '../sesion';
+import { TarjetasDescarga } from '../componentes/descargas';
 
 const PRODUCTOS = ['DENTAL-PRO', 'BARBER-PRO', 'FarmaSys', 'GYM-PRO', 'Repara-Pro', 'Supero POS', 'Sencillo', 'Vendly', 'Habitta', 'ReservaFlow', 'Avendia'];
 
@@ -17,6 +18,7 @@ export function MarcaLogin() {
         <li><span>💵</span><div><strong>Caja diaria y auditoría.</strong><br />Cada vendedor cierra su día, tú apruebas, y todo queda registrado.</div></li>
       </ul>
       <div className="productos">{PRODUCTOS.map((p) => <span key={p}>{p}</span>)}</div>
+      <TarjetasDescarga tono="oscuro" titulo="Lleva CONTROL en tu celular y en tu PC" />
     </aside>
   );
 }
@@ -87,7 +89,7 @@ export function Login() {
                 {error && <div className="error" role="alert">{error}</div>}
                 <button type="submit" className="btn" disabled={cargando}>{cargando ? 'Entrando…' : 'Entrar'}</button>
               </form>
-              <p className="pie"><Link to="/descargar">Descargar la app para celular y PC</Link> · <Link to="/recuperar">¿Olvidaste tu contraseña?</Link></p>
+              <p className="pie"><Link to="/recuperar">¿Olvidaste tu contraseña?</Link> · <Link to="/descargar">Guía de instalación de la app</Link></p>
             </>
           )}
         </div>

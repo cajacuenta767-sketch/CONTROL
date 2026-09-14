@@ -257,18 +257,57 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--enfoque); b
 .material-capturas { display: flex; gap: 8px; flex-wrap: wrap; } .material-capturas img { max-width: 220px; border-radius: 8px; border: 1px solid var(--borde); }
 
 /* ---------- Landing de descarga ---------- */
-.landing { min-height: 100vh; background: var(--fondo); color: var(--texto); display: flex; flex-direction: column; }
-.landing-cab { display: flex; justify-content: space-between; align-items: center; padding: 14px 24px; background: var(--lateral); color: #fff; }
-.landing-cab .marca { font-weight: 700; letter-spacing: .06em; display: flex; align-items: center; gap: 10px; }
-.landing-cab nav { display: flex; gap: 16px; } .landing-cab nav a { color: #cbd5e1; font-size: 14px; }
-.landing-hero { display: grid; grid-template-columns: 1.2fr 1fr; gap: 32px; align-items: center; padding: 56px 24px 32px; width: min(1080px, 100%); margin: 0 auto; box-sizing: border-box; }
-.landing-hero h1 { font-size: 36px; line-height: 1.15; margin-bottom: 12px; } .landing-hero p { font-size: 17px; color: var(--texto-suave); line-height: 1.5; }
-.landing-botones { display: flex; gap: 10px; flex-wrap: wrap; margin: 20px 0 10px; } .landing-botones .btn { padding: 12px 18px; font-size: 15px; }
-.landing-telefono { display: flex; justify-content: center; }
-.landing-telefono .pantalla { width: 240px; height: 460px; border-radius: 32px; background: #0f172a; border: 8px solid #1e293b; padding: 20px 14px; box-shadow: 0 30px 60px rgba(0,0,0,.35); display: flex; flex-direction: column; gap: 10px; }
-.pantalla-cab { color: #fff; font-weight: 700; letter-spacing: .08em; text-align: center; margin-bottom: 6px; }
-.pantalla-tarjeta { background: #111a2e; border: 1px solid #243047; border-radius: 12px; padding: 10px 12px; color: #fff; } .pantalla-tarjeta small { display: block; color: #94a3b8; font-size: 11px; text-transform: uppercase; } .pantalla-tarjeta strong { font-size: 20px; }
-.pantalla-boton { margin-top: auto; background: #1d4ed8; color: #fff; text-align: center; border-radius: 10px; padding: 11px; font-weight: 600; }
-.landing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; width: min(1080px, 100%); margin: 0 auto; padding: 8px 24px 24px; box-sizing: border-box; }
-.landing-card { background: var(--panel); border: 1px solid var(--borde); border-radius: var(--radio); padding: 18px 20px; } .landing-card h2 { font-size: 18px; margin-bottom: 8px; } .landing-card ol { padding-left: 18px; margin: 0; line-height: 1.5; } .landing-card li { margin-bottom: 6px; }
-@media (max-width: 800px) { .landing-hero { grid-template-columns: 1fr; padding-top: 28px; } .landing-hero h1 { font-size: 28px; } .landing-telefono { display: none; } }
+.dl { min-height: 100vh; background: var(--fondo); color: var(--texto); }
+.dl-ancho { width: min(1080px, 100%); margin: 0 auto; padding: 0 24px; box-sizing: border-box; }
+.dl-hero { background: radial-gradient(900px 500px at 85% 10%, rgba(59,130,246,.35) 0%, transparent 60%), linear-gradient(160deg, #0b1220 0%, #0f172a 55%, #14532d00 100%), #0f172a; color: #fff; padding: 56px 0 60px; }
+.dl-marca { display: flex; align-items: center; gap: 12px; margin-bottom: 26px; } .dl-marca .logo { width: 44px; height: 44px; font-size: 18px; border-radius: 12px; }
+.dl-marca strong { display: block; font-size: 20px; letter-spacing: .08em; } .dl-marca small { color: #94a3b8; font-size: 12px; }
+.dl-hero h1 { font-size: 44px; line-height: 1.1; margin: 0 0 14px; max-width: 760px; }
+.dl-hero p { font-size: 17px; color: #cbd5e1; line-height: 1.55; max-width: 680px; margin: 0 0 26px; }
+.dl-botones { display: flex; gap: 10px; flex-wrap: wrap; }
+.dl-btn { display: inline-flex; align-items: center; gap: 9px; padding: 12px 20px; border-radius: 10px; font-weight: 600; font-size: 15px; border: 1px solid rgba(255,255,255,.18); color: #fff; background: rgba(255,255,255,.06); cursor: pointer; text-decoration: none; }
+.dl-btn svg { width: 20px; height: 20px; flex: none; } .dl-btn:hover { background: rgba(255,255,255,.12); }
+.dl-btn.primario { background: var(--primario); border-color: var(--primario); } .dl-btn.primario:hover { background: var(--primario-hover); }
+.dl-btn.texto { background: transparent; border-color: transparent; } .dl-btn.apagado { opacity: .5; pointer-events: none; }
+.dl-btn.ancho { width: 100%; justify-content: center; box-sizing: border-box; margin-top: auto; } .dl-btn.chico { padding: 8px 14px; font-size: 14px; }
+.dl-ancho h2 { font-size: 26px; margin: 44px 0 4px; } .dl-sub { color: var(--texto-suave); margin: 0 0 18px; }
+.dl-tarjetas { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.dl-tarjeta { background: var(--panel); border: 1px solid var(--borde); border-radius: 14px; padding: 22px; display: flex; flex-direction: column; gap: 8px; box-shadow: var(--sombra); }
+.dl-tarjeta .dl-btn, .dl-confianza .dl-btn { color: var(--texto); border-color: var(--borde); background: var(--campo); } .dl-tarjeta .dl-btn:hover { background: var(--hover); }
+.dl-tarjeta .dl-btn.primario, .dl-confianza .dl-btn.primario { color: #fff; background: var(--primario); border-color: var(--primario); }
+.dl-ico { width: 44px; height: 44px; border-radius: 12px; background: var(--primario-suave); color: var(--primario); display: grid; place-items: center; } .dl-ico svg { width: 24px; height: 24px; }
+.dl-tarjeta h3 { font-size: 18px; margin: 4px 0 0; } .dl-desc { color: var(--texto-suave); margin: 0; line-height: 1.45; }
+.dl-tarjeta ol { padding-left: 18px; margin: 4px 0 12px; color: var(--texto-suave); line-height: 1.5; font-size: 14px; } .dl-tarjeta li { margin-bottom: 4px; } .dl-tarjeta code { background: var(--neutro-fondo); padding: 1px 5px; border-radius: 4px; font-size: 12.5px; }
+.dl-enlace { background: none; border: 0; color: var(--primario); font-size: 13px; text-align: center; margin-top: 8px; cursor: pointer; display: block; text-decoration: none; }
+.dl-confianza { display: grid; grid-template-columns: 44px 1fr; gap: 16px; background: var(--panel); border: 1px solid var(--borde); border-radius: 14px; padding: 22px; margin-top: 24px; }
+.dl-confianza h3 { margin: 0 0 6px; font-size: 18px; } .dl-confianza p { color: var(--texto-suave); line-height: 1.55; margin: 0 0 12px; }
+.dl-funciones { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.dl-funcion { background: var(--panel); border: 1px solid var(--borde); border-radius: 12px; padding: 16px 18px; } .dl-funcion strong { display: block; margin-bottom: 4px; } .dl-funcion p { margin: 0; color: var(--texto-suave); font-size: 14px; line-height: 1.5; }
+.dl-pie { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; width: min(1080px, 100%); margin: 40px auto 0; padding: 18px 24px; box-sizing: border-box; border-top: 1px solid var(--borde); color: var(--texto-suave); font-size: 13px; }
+@media (max-width: 720px) { .dl-hero { padding: 36px 0 40px; } .dl-hero h1 { font-size: 30px; } .dl-hero p { font-size: 15px; } .dl-botones .dl-btn { width: 100%; justify-content: center; box-sizing: border-box; } .dl-confianza { grid-template-columns: 1fr; } }
+
+/* ---------- Tarjetas de descarga de la app ---------- */
+.descargas-titulo { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; font-weight: 600; margin-bottom: 10px; opacity: .8; }
+.descargas-titulo span { font-weight: 400; text-transform: none; letter-spacing: 0; }
+.descargas-lista { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.descargas-item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; text-align: left; cursor: pointer; font: inherit; text-decoration: none; transition: transform .12s ease, background .12s ease; }
+.descargas-item:hover { transform: translateY(-1px); }
+.descargas-icono { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; flex: none; }
+.descargas-icono svg { width: 22px; height: 22px; }
+.descargas-texto { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.descargas-texto strong { font-size: 14px; } .descargas-texto em { font-style: normal; font-weight: 400; font-size: 11px; opacity: .8; }
+.descargas-texto small { font-size: 12px; opacity: .75; }
+.descargas-flecha { font-size: 18px; opacity: .7; }
+.descargas.oscuro .descargas-item { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); color: #fff; }
+.descargas.oscuro .descargas-item:hover { background: rgba(255,255,255,.14); }
+.descargas.oscuro .descargas-item.recomendado { background: rgba(59,130,246,.35); border-color: rgba(147,197,253,.6); }
+.descargas.oscuro .descargas-icono { background: rgba(255,255,255,.14); color: #fff; }
+.descargas.claro .descargas-item { background: var(--panel); border: 1px solid var(--borde); color: var(--texto); }
+.descargas.claro .descargas-item:hover { border-color: var(--primario); }
+.descargas.claro .descargas-item.recomendado { border-color: var(--primario); background: var(--primario-suave); }
+.descargas.claro .descargas-icono { background: var(--primario); color: #fff; }
+.descargas.compacto .descargas-item { padding: 9px 12px; } .descargas.compacto .descargas-icono { width: 32px; height: 32px; }
+.login-marca .descargas { margin-top: 28px; padding-top: 22px; border-top: 1px solid rgba(255,255,255,.14); }
+@media (max-width: 860px) { .login-marca .descargas { margin-top: 14px; padding-top: 14px; } .login-marca .descargas-lista { grid-template-columns: 1fr; } }
+.panel-apps { display: grid; grid-template-columns: 1.1fr 1.6fr; gap: 18px; align-items: center; }
+@media (max-width: 800px) { .panel-apps { grid-template-columns: 1fr; } }
