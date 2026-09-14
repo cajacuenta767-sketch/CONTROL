@@ -174,7 +174,7 @@ export function activar({ clave, producto, huella, dominio, nombre_equipo, versi
     if (e.auditoria) {
       auditar(e.auditoria);
       const d = e.auditoria.detalle || {};
-      const clonada = e.cuerpo?.codigo === 'max_activaciones' || d.motivo?.includes('otro equipo');
+      const clonada = e.extra?.codigo === 'max_activaciones' || d.motivo?.includes('otro equipo');
       alertarDuenoSinEsperar(clonada ? 'instalacion_clonada' : 'activacion_rechazada', `Clave ${d.clave} · ${d.motivo} · equipo ${d.huella || '?'} · IP ${ip || '?'}`, { referencia: `${d.clave}:${d.huella}:${new Date().toISOString().slice(0, 10)}`, url: e.auditoria.entidadId ? `/licencias/${e.auditoria.entidadId}` : '/auditoria' });
     }
     throw e;

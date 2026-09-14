@@ -85,8 +85,21 @@ export function crearProducto(datos, actor) {
   return obtenerProducto(id);
 }
 
+const URL_SEGURA = /^https:\/\/[^\s]+$/i;
+
+/** El material de venta solo admite URLs https (se pintan como enlaces e imágenes en la web pública). */
+function validarMaterial(texto) {
+  if (texto === null || texto === undefined) return null;
+  let m;
+  try { m = JSON.parse(texto); } catch { throw new ErrorHttp(422, 'Material inválido'); }
+  const urls = [...(Array.isArray(m.capturas) ? m.capturas : []), ...(m.video_url ? [m.video_url] : [])];
+  for (const u of urls) if (!URL_SEGURA.test(String(u))) throw new ErrorHttp(422, `URL no permitida en el material: ${String(u).slice(0, 60)} (solo https)`);
+  return JSON.stringify({ ficha: String(m.ficha || '').slice(0, 2000), video_url: m.video_url || null, capturas: (m.capturas || []).slice(0, 12), beneficios: (m.beneficios || []).slice(0, 12).map((b) => String(b).slice(0, 200)), objeciones: (m.objeciones || []).slice(0, 20).map((o) => ({ p: String(o.p || '').slice(0, 200), r: String(o.r || '').slice(0, 500) })) });
+}
+
 export function actualizarProducto(id, datos, actor) {
   obtenerProducto(id);
+  if (datos.material !== undefined) datos = { ...datos, material: validarMaterial(datos.material) };
   const campos = [];
   const valores = [];
   for (const k of ['nombre', 'descripcion', 'activo', 'version_actual', 'material']) {

@@ -63,6 +63,7 @@ rutasPublico.get('/paypal/retorno', asincrono(async (req, res) => {
 
 /* ---------- Webhooks (cuerpo crudo para verificar firmas) ---------- */
 export const rutasWebhooks = Router();
+rutasWebhooks.use(rateLimit({ windowMs: 60 * 1000, limit: 120, standardHeaders: 'draft-8', legacyHeaders: false }));
 rutasWebhooks.post('/stripe', raw({ type: '*/*', limit: '1mb' }), asincrono((req, res) => {
   const crudo = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : String(req.body || '');
   if (!verificarFirmaStripe(req.get('stripe-signature'), crudo)) throw new ErrorHttp(400, 'Firma de Stripe inválida');

@@ -40,8 +40,8 @@ por impacto para el negocio.
 ## Segunda ronda: todo lo pendiente, implementado
 
 Lo que en la primera revisión quedó como pendiente se construyó en cinco fases. Cada punto
-está cubierto por tests del backend (`npm test`, 59 pruebas) o por la suite de interfaz
-(`npm run e2e`, 16 flujos en Chromium).
+está cubierto por tests del backend (`npm test`, 81 pruebas) o por la suite de interfaz
+(`npm run e2e`, 19 flujos en Chromium).
 
 ### 1. Seguridad y sesiones · hecho
 

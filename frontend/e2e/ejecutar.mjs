@@ -50,7 +50,7 @@ try {
   const { chromium } = await import('playwright-core');
   const executablePath = process.env.CHROMIUM || undefined;
   const navegador = await chromium.launch({ executablePath, args: ['--no-sandbox'] });
-  const pagina = await navegador.newPage({ viewport: { width: 1360, height: 900 } });
+  const pagina = await navegador.newPage({ viewport: { width: 1360, height: 900 }, acceptDownloads: true });
   const errores = [];
   pagina.on('pageerror', (e) => errores.push(`pageerror: ${e.message}`));
   pagina.on('console', (m) => { if (m.type() === 'error') errores.push(`console: ${m.text()}`); });
@@ -166,6 +166,47 @@ try {
     await pagina.waitForSelector('table[aria-label="Permisos por rol"] th.guia-yo:has-text("Admin")');
     await pagina.click('nav >> text=Cerrar sesión');
     await entrar('dueno@agencia.test');
+  });
+  await paso('prospecto: crear, avanzar y convertir en cliente', async () => {
+    await pagina.goto(`${base}/prospectos`);
+    await pagina.waitForSelector('.tablero-kanban');
+    await pagina.click('button:has-text("+ Prospecto")');
+    await pagina.fill('[role=dialog] input >> nth=0', 'Luis Barbero');
+    await pagina.fill('[role=dialog] input >> nth=1', 'Barbería Luis');
+    await pagina.click('[role=dialog] button[type=submit]');
+    await pagina.waitForSelector('.kanban-tarjeta:has-text("Luis Barbero")');
+    await pagina.click('.kanban-tarjeta:has-text("Luis Barbero")');
+    await pagina.selectOption('[role=dialog] select', 'demo');
+    await pagina.waitForSelector('.kanban-col:has-text("Demo instalada") .kanban-tarjeta:has-text("Luis Barbero")');
+    await pagina.click('.kanban-tarjeta:has-text("Luis Barbero")');
+    await pagina.click('button:has-text("Convertir en cliente y vender")');
+    await pagina.waitForURL(/\/ventas\/nueva\?cliente_id=\d+/);
+  });
+  await paso('renovaciones, tablero y contabilidad cargan para el dueño', async () => {
+    await pagina.goto(`${base}/renovaciones`);
+    await pagina.waitForSelector('table[aria-label="Renovaciones"]');
+    await pagina.click('.chip:has-text("60 días")');
+    await pagina.waitForSelector('table[aria-label="Renovaciones"] tbody tr');
+    await pagina.goto(`${base}/tablero`);
+    await pagina.waitForSelector('.ranking-fila');
+    await pagina.goto(`${base}/contabilidad`);
+    await pagina.waitForSelector('dd:has-text("USD")');
+    const [descarga] = await Promise.all([pagina.waitForEvent('download'), pagina.click('button:has-text("Descargar Excel del mes")')]);
+    if (!/contabilidad-\d{4}-\d{2}\.xlsx/.test(descarga.suggestedFilename())) throw new Error(`descarga inesperada: ${descarga.suggestedFilename()}`);
+  });
+  await paso('demo autoservicio desde la web de compra', async () => {
+    const publica = await navegador.newPage({ viewport: { width: 1200, height: 900 } });
+    publica.on('pageerror', (e) => errores.push(`pageerror: ${e.message}`));
+    await publica.goto(`${base}/comprar`);
+    await publica.waitForSelector('.producto-publico');
+    await publica.click('.chip:has-text("Probar gratis")');
+    await publica.fill('form input >> nth=0', 'Rosa Demo');
+    await publica.fill('input[type=email]', 'rosa.demo@prueba.test');
+    await publica.click('button:has-text("Activar mi demo gratis")');
+    await publica.waitForSelector('text=Tu demo está lista');
+    const clave = await publica.textContent('code.clave');
+    if (!/^CTL-/.test(clave || '')) throw new Error('sin clave de demo');
+    await publica.close();
   });
   await paso('página de tickets del panel', async () => {
     await pagina.goto(`${base}/tickets`);
