@@ -68,7 +68,7 @@ SUPERADMIN_EMAIL=tu@correo.com SUPERADMIN_NOMBRE="Tu nombre" SUPERADMIN_CLAVE='U
 | Comando | Qué hace |
 |---|---|
 | `npm run dev` | API y panel en modo desarrollo |
-| `npm test` | Tests del backend (82: flujo completo, seguridad, dinero, tareas, portal, emergencia, precios y roles, cobros, retención, prospectos, operación, producto) |
+| `npm test` | Tests del backend (83: flujo completo, seguridad, dinero, tareas, portal, emergencia, precios y roles, cobros, retención, prospectos, operación, producto) |
 | `npm run e2e` | Compila el panel y recorre 20 flujos en Chromium con Playwright (servidor temporal sembrado) |
 | `npm run build` | Compila el panel en `frontend/dist`; la API lo sirve sola en producción |
 | `npm start` | Arranca la API (sirve el panel compilado en el mismo puerto) |

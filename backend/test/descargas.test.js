@@ -50,3 +50,19 @@ test('landing de descarga: sin archivos no hay nada; con URL externa o archivo s
   assert.equal(r.body.plataformas.android.origen, 'externa', 'vuelve a la URL externa');
   assert.ok(obtenerDb().prepare("SELECT 1 FROM auditoria WHERE accion = 'descargas.descarga'").get());
 });
+
+test('los ajustes de las fases nuevas se leen y se guardan desde el panel (culqi, whatsapp, facturación, descargas)', async () => {
+  let r = await request(app).get('/api/v1/ajustes').set('Authorization', `Bearer ${tokenS}`);
+  for (const k of ['culqi_clave_publica', 'whatsapp_token', 'telegram_chat_id', 'facturacion_proveedor', 'nubefact_url', 'descarga_windows_url', 'tope_descuento_admin_pct', 'niveles_precio', 'demo_autoservicio']) assert.ok(k in r.body, `falta ${k}`);
+  assert.equal('clave_privada_pem' in r.body, false, 'la clave privada nunca sale');
+  r = await request(app).patch('/api/v1/ajustes').set('Authorization', `Bearer ${tokenS}`).send({ descarga_android_url: 'https://ejemplo.test/CONTROL.apk', telegram_chat_id: '42', facturacion_proveedor: 'manual', clave_privada_pem: 'hackeada', inventado: 'x' });
+  assert.equal(r.status, 200);
+  r = await request(app).get('/api/v1/publico/descargas');
+  assert.equal(r.body.plataformas.android.url, 'https://ejemplo.test/CONTROL.apk');
+  assert.equal(r.body.plataformas.windows.origen, 'archivo', 'el archivo subido antes sigue teniendo prioridad');
+  assert.equal(obtenerDb().prepare("SELECT valor FROM ajustes WHERE clave = 'telegram_chat_id'").get().valor, '42');
+  assert.equal(obtenerDb().prepare("SELECT valor FROM ajustes WHERE clave = 'clave_privada_pem'").get().valor.startsWith('-----BEGIN'), true, 'la clave privada no se toca');
+  assert.equal(obtenerDb().prepare("SELECT 1 FROM ajustes WHERE clave = 'inventado'").get(), undefined, 'no se crean claves nuevas');
+  r = await request(app).patch('/api/v1/ajustes').set('Authorization', `Bearer ${tokenS}`).send({ niveles_precio: 'no es json' });
+  assert.equal(r.status, 422);
+});

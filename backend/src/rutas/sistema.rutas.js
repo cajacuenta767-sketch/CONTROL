@@ -43,20 +43,16 @@ rutasAuditoria.get('/', asincrono((req, res) => res.json(listarAuditoria({
   accion: req.query.accion, usuarioId: req.query.usuario_id ? Number(req.query.usuario_id) : undefined, entidad: req.query.entidad,
 }))));
 
-const AJUSTES_EDITABLES = [
-  'nombre_agencia', 'direccion_agencia', 'logo_url', 'url_publica', 'moneda_base', 'tipos_cambio', 'tope_descuento_pct', 'comision_renovacion_pct',
-  'gracia_dias', 'demo_dias', 'soporte_vitalicio_dias', 'metodos_en_mano', 'desfase_horario_horas',
-  'smtp_host', 'smtp_puerto', 'smtp_usuario', 'smtp_clave', 'smtp_desde',
-  'stripe_clave_secreta', 'stripe_webhook_secreto', 'paypal_cliente', 'paypal_secreto', 'paypal_sandbox', 'pasarela_demo',
-  'plantilla_wa_claves', 'plantilla_wa_cobro', 'plantilla_wa_renovacion',
-  'hora_recordatorio_caja', 'respaldos_conservar', 'dias_aviso_vencimiento', 'renovacion_automatica_dias', 'api_key_pedidos', 'portal_activo',
-];
+// Todo ajuste de la tabla es editable por el dueño salvo las claves de firma, que nunca salen del servidor.
+const AJUSTES_PROTEGIDOS = ['clave_privada_pem', 'clave_publica_pem'];
+const esEditable = (clave) => !AJUSTES_PROTEGIDOS.includes(clave) && obtenerDb().prepare('SELECT 1 FROM ajustes WHERE clave = ?').get(clave) !== undefined;
+const JSON_OBLIGATORIO = { tipos_cambio: '{"PEN":3.75}', niveles_precio: '[{"nombre":"Micro","mensual":7,"anual":59,"vitalicio":149}]' };
 const SECRETOS = ['smtp_clave', 'stripe_clave_secreta', 'stripe_webhook_secreto', 'paypal_secreto', 'api_key_pedidos', 'culqi_clave_secreta', 'whatsapp_token', 'telegram_token', 'nubefact_token'];
 
 export const rutasAjustes = Router();
 rutasAjustes.use(requerirAuth);
 rutasAjustes.get('/', asincrono((req, res) => {
-  const filas = obtenerDb().prepare('SELECT clave, valor FROM ajustes').all().filter((f) => AJUSTES_EDITABLES.includes(f.clave));
+  const filas = obtenerDb().prepare('SELECT clave, valor FROM ajustes').all().filter((f) => !AJUSTES_PROTEGIDOS.includes(f.clave));
   const esSuper = req.usuario.rol === 'superadmin';
   // Los secretos nunca viajan al navegador: solo se indica si están configurados.
   res.json(Object.fromEntries(filas.map((f) => [f.clave, SECRETOS.includes(f.clave) ? (esSuper && f.valor ? '••••••••' : '') : f.valor])));
@@ -68,9 +64,9 @@ rutasAjustes.patch(
   asincrono((req, res) => {
     const cambios = {};
     for (const [k, v] of Object.entries(req.datos)) {
-      if (!AJUSTES_EDITABLES.includes(k)) continue;
+      if (!esEditable(k)) continue;
       if (SECRETOS.includes(k) && String(v) === '••••••••') continue; // sin cambios
-      if (k === 'tipos_cambio') { try { JSON.parse(String(v)); } catch { throw new ErrorHttp(422, 'tipos_cambio debe ser JSON, p. ej. {"PEN":3.75}'); } }
+      if (JSON_OBLIGATORIO[k]) { try { JSON.parse(String(v)); } catch { throw new ErrorHttp(422, `${k} debe ser JSON, p. ej. ${JSON_OBLIGATORIO[k]}`); } }
       guardarAjuste(k, v); cambios[k] = SECRETOS.includes(k) ? '***' : v;
     }
     auditar({ usuarioId: req.usuario.id, accion: 'ajustes.actualizar', entidad: 'ajustes', detalle: cambios });
