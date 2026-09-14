@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.db
+*.db-*
+.env
+backend/datos/
+backend/claves/
+.DS_Store

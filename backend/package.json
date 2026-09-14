@@ -1,0 +1,25 @@
+{
+  "name": "@control/backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "node --watch --no-warnings=ExperimentalWarning src/index.js",
+    "start": "node --no-warnings=ExperimentalWarning src/index.js",
+    "seed": "node --no-warnings=ExperimentalWarning scripts/seed.js",
+    "test": "BASE_DATOS=:memory: JWT_SECRETO=secreto-de-prueba node --no-warnings=ExperimentalWarning --test \"test/**/*.test.js\""
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "supertest": "^7.1.0"
+  }
+}
