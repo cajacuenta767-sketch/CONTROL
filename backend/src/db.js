@@ -408,6 +408,171 @@ const MIGRACIONES = [
         ('niveles_precio', '[{"nombre":"Micro","mensual":7,"anual":59,"vitalicio":149},{"nombre":"Servicios simples","mensual":15,"anual":129,"vitalicio":299},{"nombre":"Negocio establecido","mensual":25,"anual":219,"vitalicio":499},{"nombre":"Profesional regulado","mensual":39,"anual":349,"vitalicio":790}]');
     `,
   },
+  {
+    version: 4,
+    sql: `
+      -- roles nuevos: soporte (tickets y licencias) y contador (caja, comisiones, exportación)
+      CREATE TABLE usuarios_v4 (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT NOT NULL UNIQUE,
+        nombre TEXT NOT NULL,
+        hash_clave TEXT NOT NULL,
+        rol TEXT NOT NULL CHECK (rol IN ('superadmin','admin','vendedor','revendedor','soporte','contador')),
+        comision_pct REAL NOT NULL DEFAULT 20,
+        tope_emisiones_dia INTEGER NOT NULL DEFAULT 20,
+        tope_demos_semana INTEGER NOT NULL DEFAULT 10,
+        telefono TEXT,
+        activo INTEGER NOT NULL DEFAULT 1,
+        creado_en TEXT NOT NULL DEFAULT (datetime('now')),
+        intentos_fallidos INTEGER NOT NULL DEFAULT 0,
+        bloqueado_hasta TEXT,
+        debe_cambiar_clave INTEGER NOT NULL DEFAULT 0,
+        totp_secreto TEXT,
+        totp_activo INTEGER NOT NULL DEFAULT 0,
+        codigo_ref TEXT UNIQUE,
+        cupo_licencias INTEGER,
+        descuento_mayorista_pct REAL,
+        marca_nombre TEXT,
+        ultimo_acceso TEXT
+      );
+      INSERT INTO usuarios_v4 SELECT id, email, nombre, hash_clave, rol, comision_pct, tope_emisiones_dia, tope_demos_semana, telefono, activo, creado_en,
+        intentos_fallidos, bloqueado_hasta, debe_cambiar_clave, totp_secreto, totp_activo, codigo_ref, cupo_licencias, descuento_mayorista_pct, marca_nombre, ultimo_acceso FROM usuarios;
+      DROP TABLE usuarios;
+      ALTER TABLE usuarios_v4 RENAME TO usuarios;
+
+      -- enlaces de pago: nuevos proveedores (culqi y futuros)
+      CREATE TABLE enlaces_pago_v4 (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        venta_id INTEGER NOT NULL REFERENCES ventas(id),
+        proveedor TEXT NOT NULL,
+        id_externo TEXT, url TEXT NOT NULL,
+        monto REAL NOT NULL, moneda TEXT NOT NULL,
+        estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente','pagado','cancelado','expirado')),
+        datos TEXT, creado_por INTEGER REFERENCES usuarios(id),
+        creado_en TEXT NOT NULL DEFAULT (datetime('now')), pagado_en TEXT
+      );
+      INSERT INTO enlaces_pago_v4 SELECT id, venta_id, proveedor, id_externo, url, monto, moneda, estado, datos, creado_por, creado_en, pagado_en FROM enlaces_pago;
+      DROP TABLE enlaces_pago;
+      ALTER TABLE enlaces_pago_v4 RENAME TO enlaces_pago;
+
+      -- cuotas
+      ALTER TABLE planes ADD COLUMN cuotas INTEGER NOT NULL DEFAULT 1;
+      ALTER TABLE ventas ADD COLUMN cuotas INTEGER NOT NULL DEFAULT 1;
+      CREATE TABLE cuotas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        venta_id INTEGER NOT NULL REFERENCES ventas(id),
+        numero INTEGER NOT NULL,
+        monto REAL NOT NULL,
+        vence_en TEXT NOT NULL,
+        estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente','pagada','vencida')),
+        pagada_en TEXT,
+        UNIQUE (venta_id, numero)
+      );
+
+      -- mensajería (WhatsApp Cloud API, Telegram) y alertas al dueño
+      CREATE TABLE mensajes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        canal TEXT NOT NULL CHECK (canal IN ('whatsapp','telegram')),
+        para TEXT NOT NULL,
+        texto TEXT NOT NULL,
+        plantilla TEXT,
+        referencia TEXT,
+        estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente','enviado','error','sin_configurar')),
+        error TEXT,
+        id_externo TEXT,
+        creado_en TEXT NOT NULL DEFAULT (datetime('now')),
+        enviado_en TEXT
+      );
+
+      -- retención
+      CREATE TABLE encuestas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        cliente_id INTEGER NOT NULL REFERENCES clientes(id),
+        ticket_id INTEGER REFERENCES tickets(id),
+        venta_id INTEGER REFERENCES ventas(id),
+        producto_id INTEGER REFERENCES productos(id),
+        motivo TEXT NOT NULL,
+        puntaje INTEGER NOT NULL CHECK (puntaje BETWEEN 1 AND 5),
+        comentario TEXT,
+        creado_en TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
+      -- prospectos (leads)
+      CREATE TABLE prospectos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre TEXT NOT NULL,
+        negocio TEXT,
+        telefono TEXT,
+        email TEXT,
+        rubro TEXT,
+        producto_id INTEGER REFERENCES productos(id),
+        etapa TEXT NOT NULL DEFAULT 'nuevo' CHECK (etapa IN ('nuevo','contactado','demo','propuesta','ganado','perdido')),
+        motivo_perdida TEXT,
+        notas TEXT,
+        vendedor_id INTEGER NOT NULL REFERENCES usuarios(id),
+        cliente_id INTEGER REFERENCES clientes(id),
+        origen TEXT,
+        proximo_paso TEXT,
+        proximo_paso_en TEXT,
+        creado_en TEXT NOT NULL DEFAULT (datetime('now')),
+        actualizado_en TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
+      -- material de venta y versiones publicadas por producto
+      ALTER TABLE productos ADD COLUMN material TEXT;
+      CREATE TABLE versiones_producto (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        producto_id INTEGER NOT NULL REFERENCES productos(id),
+        version TEXT NOT NULL,
+        notas TEXT,
+        archivo TEXT,
+        tamano INTEGER,
+        sha256 TEXT,
+        url_externa TEXT,
+        publicada INTEGER NOT NULL DEFAULT 1,
+        creado_por INTEGER REFERENCES usuarios(id),
+        creado_en TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE (producto_id, version)
+      );
+
+      -- facturación electrónica
+      CREATE TABLE comprobantes_fiscales (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        venta_id INTEGER NOT NULL REFERENCES ventas(id),
+        pago_id INTEGER REFERENCES pagos(id),
+        proveedor TEXT NOT NULL,
+        tipo TEXT NOT NULL CHECK (tipo IN ('boleta','factura','nota_credito')),
+        serie TEXT, numero TEXT,
+        cliente_documento_tipo TEXT, cliente_documento TEXT, cliente_razon_social TEXT, cliente_direccion TEXT,
+        moneda TEXT NOT NULL, total REAL NOT NULL, igv REAL NOT NULL DEFAULT 0,
+        estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente','aceptado','rechazado','anulado','error')),
+        enlace_pdf TEXT, enlace_xml TEXT, hash TEXT, respuesta TEXT, error TEXT,
+        creado_por INTEGER REFERENCES usuarios(id),
+        creado_en TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      ALTER TABLE clientes ADD COLUMN documento_tipo TEXT;
+      ALTER TABLE clientes ADD COLUMN documento TEXT;
+      ALTER TABLE clientes ADD COLUMN razon_social TEXT;
+      ALTER TABLE clientes ADD COLUMN direccion TEXT;
+
+      INSERT OR IGNORE INTO ajustes (clave, valor) VALUES
+        ('culqi_clave_publica', ''), ('culqi_clave_secreta', ''),
+        ('whatsapp_token', ''), ('whatsapp_telefono_id', ''), ('whatsapp_modo', 'texto'),
+        ('whatsapp_plantilla_cobro', ''), ('whatsapp_plantilla_vencimiento', ''), ('whatsapp_idioma', 'es'),
+        ('telegram_token', ''), ('telegram_chat_id', ''),
+        ('telefono_dueno', ''),
+        ('alertas_dueno', 'pago_por_confirmar,activacion_rechazada,instalacion_clonada,cuota_vencida,ticket_nuevo,cierre_caja,planificador_detenido'),
+        ('recordatorio_cobro_dias', '3'),
+        ('cuotas_gracia_dias', '5'),
+        ('facturacion_proveedor', 'ninguno'),
+        ('nubefact_url', ''), ('nubefact_token', ''),
+        ('empresa_ruc', ''), ('empresa_razon_social', ''), ('empresa_direccion', ''),
+        ('serie_factura', 'F001'), ('serie_boleta', 'B001'), ('igv_pct', '18'), ('precios_incluyen_igv', '1'),
+        ('facturar_automatico', '0'),
+        ('demo_autoservicio', '1'),
+        ('monitor_url', '');
+    `,
+  },
 ];
 
 function migrar(d) {
@@ -416,6 +581,7 @@ function migrar(d) {
     aplicada_en TEXT NOT NULL DEFAULT (datetime('now'))
   )`);
   const aplicadas = new Set(d.prepare('SELECT version FROM _migraciones').all().map((f) => f.version));
+  d.exec('PRAGMA foreign_keys = OFF');
   for (const m of MIGRACIONES) {
     if (aplicadas.has(m.version)) continue;
     d.exec('BEGIN');
@@ -428,6 +594,7 @@ function migrar(d) {
       throw e;
     }
   }
+  d.exec('PRAGMA foreign_keys = ON');
 }
 
 /** Lee un ajuste (string). */

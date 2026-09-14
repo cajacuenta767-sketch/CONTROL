@@ -2,6 +2,7 @@ import { obtenerDb, transaccion, ajuste, ahoraSql, hoyLocal, modZona } from '../
 import { ErrorHttp, noEncontrado, prohibido } from '../middleware/errores.js';
 import { esGestor, esSuperadmin } from '../middleware/auth.js';
 import { auditar } from './auditoria.js';
+import { alertarDuenoSinEsperar } from './mensajeria.js';
 
 const redondear = (n) => Math.round(n * 100) / 100;
 
@@ -57,6 +58,7 @@ export function cerrarCaja(actor, { fecha = hoyLocal(), observacion } = {}) {
     .run(actor.id, fecha, r.total_cobrado, r.total_cobrado, JSON.stringify(r.por_metodo), JSON.stringify(r.por_moneda), r.comision_dia, r.a_entregar, r.cantidad_pagos, observacion ?? null);
   const id = Number(res.lastInsertRowid);
   auditar({ usuarioId: actor.id, accion: 'caja.cerrar', entidad: 'cierre_caja', entidadId: id, detalle: { fecha, total: r.total_cobrado, a_entregar: r.a_entregar } });
+  if (actor.rol !== 'superadmin') alertarDuenoSinEsperar('cierre_caja', `${actor.nombre} cerró su caja del ${fecha}: cobrado ${r.total_cobrado}, a entregar ${r.a_entregar}`, { referencia: id, url: '/caja' });
   return obtenerCierre(id);
 }
 

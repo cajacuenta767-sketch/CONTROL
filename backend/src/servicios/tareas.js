@@ -7,6 +7,7 @@ import { actualizarEstadosPorFecha } from './licencias.js';
 import { enviarCorreo, plantilla } from './correo.js';
 import { crearVenta } from './ventas.js';
 import { crearEnlace, proveedoresDisponibles } from './pagos_en_linea.js';
+import { enviarWhatsapp, alertarDueno } from './mensajeria.js';
 
 const urlPublica = () => ajuste('url_publica', 'http://localhost:5173').replace(/\/$/, '');
 const estado = { ultima_ejecucion: null, ultimo_resultado: null, ejecutando: false, errores: [] };
@@ -20,6 +21,53 @@ function marcar(tipo, referencia, canal, detalle) {
 }
 
 const fechaLegible = (s) => (s ? String(s).slice(0, 10) : '');
+const rellenar = (texto, vars) => String(texto || '').replace(/\{(\w+)\}/g, (_, k) => (vars[k] ?? ''));
+
+/* ---------- 0. Recordatorio automático de cobro por WhatsApp ---------- */
+
+/** Ventas pendientes con saldo, registradas hace N días y sin recordatorio: WhatsApp al cliente con el enlace de pago si existe. */
+export async function recordatoriosCobro() {
+  const db = obtenerDb();
+  const dias = ajusteNumero('recordatorio_cobro_dias', 3);
+  if (dias <= 0) return { recordatorios_cobro: 0 };
+  const filas = db.prepare(`SELECT v.id, v.numero, v.total, v.moneda, c.nombre AS cliente, c.telefono, pr.nombre AS producto,
+      (SELECT COALESCE(SUM(p.monto),0) FROM pagos p WHERE p.venta_id = v.id AND p.estado != 'rechazado') AS comprometido,
+      (SELECT e.url FROM enlaces_pago e WHERE e.venta_id = v.id AND e.estado = 'pendiente' ORDER BY e.id DESC LIMIT 1) AS enlace
+    FROM ventas v JOIN clientes c ON c.id = v.cliente_id JOIN productos pr ON pr.id = v.producto_id
+    WHERE v.estado = 'pendiente' AND v.total > 0 AND c.telefono IS NOT NULL AND v.creado_en <= datetime('now', ?)`).all(`-${dias} days`);
+  let enviados = 0;
+  for (const v of filas) {
+    const saldo = Math.round((v.total - v.comprometido) * 100) / 100;
+    if (saldo <= 0) continue;
+    if (!marcar('recordatorio_cobro', String(v.id), 'whatsapp', { saldo })) continue;
+    const texto = rellenar(ajuste('plantilla_wa_cobro', ''), { cliente: v.cliente, monto: `${saldo} ${v.moneda}`, producto: v.producto, venta: v.numero, enlace: v.enlace || '' });
+    await enviarWhatsapp({ para: v.telefono, texto, plantilla: ajuste('whatsapp_plantilla_cobro', '') || null, variables: [v.cliente, `${saldo} ${v.moneda}`, v.producto], referencia: `cobro:${v.id}` });
+    enviados++;
+  }
+  return { recordatorios_cobro: enviados };
+}
+
+/* ---------- 0b. Cuotas vencidas ---------- */
+
+/** Cuota impaga pasados los días de gracia: se marca vencida, se suspenden las licencias de la venta y se avisa. */
+export async function cuotasVencidas() {
+  const db = obtenerDb();
+  const gracia = ajusteNumero('cuotas_gracia_dias', 5);
+  const filas = db.prepare(`SELECT cu.*, v.numero AS venta_numero, v.moneda, c.nombre AS cliente, c.telefono, pr.nombre AS producto
+    FROM cuotas cu JOIN ventas v ON v.id = cu.venta_id JOIN clientes c ON c.id = v.cliente_id JOIN productos pr ON pr.id = v.producto_id
+    WHERE cu.estado = 'pendiente' AND v.estado != 'anulada' AND cu.vence_en <= datetime('now', ?)`).all(`-${gracia} days`);
+  let suspendidas = 0;
+  for (const cu of filas) {
+    db.prepare("UPDATE cuotas SET estado = 'vencida' WHERE id = ?").run(cu.id);
+    const motivo = `Cuota ${cu.numero} de ${cu.monto} ${cu.moneda} vencida el ${fechaLegible(cu.vence_en)}`;
+    const r = db.prepare("UPDATE licencias SET estado = 'suspendida', motivo_estado = ? WHERE venta_id = ? AND estado IN ('activa','mora')").run(motivo, cu.venta_id);
+    suspendidas += Number(r.changes);
+    auditar({ accion: 'cuota.vencida', entidad: 'venta', entidadId: cu.venta_id, detalle: { cuota: cu.numero, monto: cu.monto, licencias_suspendidas: Number(r.changes) } });
+    if (cu.telefono) await enviarWhatsapp({ para: cu.telefono, texto: `Hola ${cu.cliente}, la cuota ${cu.numero} de ${cu.monto} ${cu.moneda} por ${cu.producto} (venta ${cu.venta_numero}) está vencida y el sistema quedó pausado. Regularízala para reactivarlo al instante.`, referencia: `cuota_vencida:${cu.id}` });
+    await alertarDueno('cuota_vencida', `${cu.cliente} · ${cu.producto} · cuota ${cu.numero} de ${cu.monto} ${cu.moneda} (venta ${cu.venta_numero})`, { referencia: cu.id, url: `/ventas/${cu.venta_id}` });
+  }
+  return { cuotas_vencidas: filas.length, licencias_suspendidas_por_cuota: suspendidas };
+}
 
 /* ---------- 1. Avisos de vencimiento ---------- */
 
@@ -30,7 +78,7 @@ export async function avisosVencimiento() {
   let enviados = 0;
   for (const d of dias) {
     const filas = db
-      .prepare(`SELECT l.id, l.clave, l.etiqueta, l.vence_en, c.nombre AS cliente, c.email, pr.nombre AS producto, u.email AS vendedor_email, u.nombre AS vendedor, u.marca_nombre
+      .prepare(`SELECT l.id, l.clave, l.etiqueta, l.vence_en, c.nombre AS cliente, c.email, c.telefono, pr.nombre AS producto, u.email AS vendedor_email, u.nombre AS vendedor, u.marca_nombre
         FROM licencias l JOIN clientes c ON c.id = l.cliente_id JOIN productos pr ON pr.id = l.producto_id LEFT JOIN usuarios u ON u.id = l.vendedor_id JOIN planes pl ON pl.id = l.plan_id
         WHERE l.estado IN ('activa','mora') AND pl.tipo != 'demo' AND l.vence_en IS NOT NULL AND date(l.vence_en, ?) = date('now', ?, ?)`)
       .all(modZona(), modZona(), `+${d} days`);
@@ -38,6 +86,10 @@ export async function avisosVencimiento() {
       if (!marcar(`vencimiento_${d}`, `${l.id}:${fechaLegible(l.vence_en)}`, l.email ? 'correo' : 'panel', { dias: d })) continue;
       enviados++;
       const marca = l.marca_nombre || agencia;
+      if (l.telefono) {
+        const texto = rellenar(ajuste('plantilla_wa_renovacion', ''), { cliente: l.cliente, producto: l.producto, vence: fechaLegible(l.vence_en), agencia: marca, enlace: `${urlPublica()}/portal` });
+        await enviarWhatsapp({ para: l.telefono, texto, plantilla: ajuste('whatsapp_plantilla_vencimiento', '') || null, variables: [l.cliente, l.producto, fechaLegible(l.vence_en)], referencia: `vencimiento:${l.id}:${d}` });
+      }
       if (l.email) {
         await enviarCorreo({
           para: l.email, asunto: d === 0 ? `Tu licencia de ${l.producto} vence hoy` : `Tu licencia de ${l.producto} vence en ${d} día(s)`,
@@ -167,12 +219,15 @@ export async function ejecutarTareas({ forzarCaja = false } = {}) {
   const paso = async (nombre, fn) => { try { Object.assign(resultado, await fn()); } catch (e) { estado.errores.push(`${nombre}: ${e.message}`); } };
   await paso('estados', async () => { actualizarEstadosPorFecha(); return { estados: 'ok' }; });
   await paso('vencimientos', avisosVencimiento);
+  await paso('cobros', recordatoriosCobro);
+  await paso('cuotas', cuotasVencidas);
   await paso('caja', () => recordatorioCaja({ forzar: forzarCaja }));
   await paso('renovaciones', renovacionesAutomaticas);
   await paso('respaldo', async () => respaldoDiario());
   await paso('limpieza', async () => limpieza());
   estado.ultima_ejecucion = new Date().toISOString();
   estado.ultimo_resultado = { ...resultado, errores: [...estado.errores] };
+  if (estado.errores.length) alertarDueno('planificador_detenido', `Fallaron tareas: ${estado.errores.join(' | ')}`, { referencia: new Date().toISOString().slice(0, 13) }).catch(() => null);
   estado.ejecutando = false;
   return estado.ultimo_resultado;
 }

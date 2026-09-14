@@ -5,7 +5,7 @@ import { validar } from '../middleware/validar.js';
 import { asincrono, ErrorHttp } from '../middleware/errores.js';
 import { ajuste } from '../db.js';
 import { catalogoPublico, vendedorPorCodigo, crearPedido, estadoPedidoPublico } from '../servicios/publico.js';
-import { obtenerEnlacePublico, confirmarDemo, paypalCapturar, verificarFirmaStripe, webhookStripe } from '../servicios/pagos_en_linea.js';
+import { obtenerEnlacePublico, confirmarDemo, paypalCapturar, verificarFirmaStripe, webhookStripe, culqiDatosCheckout, culqiCobrarConToken, webhookCulqi } from '../servicios/pagos_en_linea.js';
 
 const urlPublica = () => ajuste('url_publica', 'http://localhost:5173').replace(/\/$/, '');
 
@@ -26,7 +26,7 @@ const esquemaPedido = z.object({
   etiquetas: z.array(z.string().max(80)).optional(),
   ref: z.string().max(20).optional(),
   moneda: z.string().length(3).optional(),
-  pasarela: z.enum(['demo', 'stripe', 'paypal']).optional(),
+  pasarela: z.enum(['demo', 'stripe', 'paypal', 'culqi']).optional(),
   notas: z.string().max(300).optional(),
   cliente: z.object({ nombre: z.string().min(2).max(120), empresa: z.string().max(120).optional(), email: z.string().email(), telefono: z.string().max(40).optional(), pais: z.string().max(5).optional() }),
 });
@@ -46,6 +46,9 @@ rutasPublico.get('/pedidos/:numero', asincrono((req, res) => res.json(estadoPedi
 
 rutasPublico.get('/enlaces/:id', asincrono((req, res) => res.json(obtenerEnlacePublico(Number(req.params.id)))));
 rutasPublico.post('/enlaces/:id/demo/confirmar', asincrono((req, res) => res.json(confirmarDemo(Number(req.params.id)))));
+rutasPublico.get('/enlaces/:id/culqi', asincrono((req, res) => res.json(culqiDatosCheckout(Number(req.params.id)))));
+rutasPublico.post('/enlaces/:id/culqi/cargo', validar(z.object({ token_id: z.string().min(5).max(80), email: z.string().email().optional() })),
+  asincrono(async (req, res) => res.json(await culqiCobrarConToken(Number(req.params.id), req.datos))));
 
 /** Retorno de PayPal: captura y redirige al panel público. */
 rutasPublico.get('/paypal/retorno', asincrono(async (req, res) => {
@@ -66,4 +69,11 @@ rutasWebhooks.post('/stripe', raw({ type: '*/*', limit: '1mb' }), asincrono((req
   let evento;
   try { evento = JSON.parse(crudo); } catch { throw new ErrorHttp(400, 'JSON inválido'); }
   res.json(webhookStripe(evento));
+}));
+/** Culqi no firma: el servicio re-consulta el recurso en la API antes de confirmar. */
+rutasWebhooks.post('/culqi', raw({ type: '*/*', limit: '1mb' }), asincrono(async (req, res) => {
+  const crudo = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : String(req.body || '');
+  let evento;
+  try { evento = JSON.parse(crudo); } catch { throw new ErrorHttp(400, 'JSON inválido'); }
+  res.json(await webhookCulqi(evento));
 }));

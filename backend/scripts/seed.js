@@ -54,7 +54,7 @@ for (const [codigo, nombre, descripcion, mensual, anual, vitalicio, sucursal] of
   planesPorProducto[codigo] = {
     mensual: crearPlan({ producto_id: p.id, codigo: 'mensual', nombre: 'Mensual', tipo: 'mensual', precio: mensual }, superadmin),
     anual: crearPlan({ producto_id: p.id, codigo: 'anual', nombre: 'Anual', tipo: 'anual', precio: anual }, superadmin),
-    vitalicio: crearPlan({ producto_id: p.id, codigo: 'vitalicio', nombre: 'Vitalicio', tipo: 'vitalicio', precio: vitalicio }, superadmin),
+    vitalicio: crearPlan({ producto_id: p.id, codigo: 'vitalicio', nombre: 'Vitalicio', tipo: 'vitalicio', precio: vitalicio, cuotas: vitalicio >= 299 ? 3 : 1 }, superadmin),
     sucursal: crearPlan({ producto_id: p.id, codigo: 'sucursal-extra', nombre: 'Sucursal adicional', tipo: 'sucursal_extra', precio: sucursal }, superadmin),
     mantenimiento: crearPlan({ producto_id: p.id, codigo: 'mantenimiento', nombre: 'Mantenimiento anual', tipo: 'mantenimiento', precio: Math.round(vitalicio * 0.2) }, superadmin),
     demo: crearPlan({ producto_id: p.id, codigo: 'demo', nombre: 'Demo 7 días', tipo: 'demo', precio: 0, duracion_dias: 7 }, superadmin),

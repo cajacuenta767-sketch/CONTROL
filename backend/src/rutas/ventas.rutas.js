@@ -9,6 +9,7 @@ import { requerirAuth, requerirRol } from '../middleware/auth.js';
 import { asincrono, ErrorHttp } from '../middleware/errores.js';
 import { crearVenta, listarVentas, obtenerVenta, registrarPago, confirmarPago, rechazarPago, anularVenta, adjuntarComprobante, obtenerPago } from '../servicios/ventas.js';
 import { crearEnlace, proveedoresDisponibles } from '../servicios/pagos_en_linea.js';
+import { alertarDuenoSinEsperar } from '../servicios/mensajeria.js';
 import { reciboVenta, reciboPago } from '../servicios/documentos.js';
 
 export const DIR_COMPROBANTES = resolve(dirname(fileURLToPath(import.meta.url)), '../../datos/comprobantes');
@@ -39,6 +40,7 @@ const esquemaVenta = z.object({
   moneda: z.string().length(3).optional(),
   tipo_cambio: z.number().positive().optional(),
   notas: z.string().max(500).optional(),
+  cuotas: z.number().int().min(1).max(12).optional(),
 });
 
 const esquemaPago = z.object({
@@ -55,8 +57,12 @@ rutasVentas.get('/pasarelas', (req, res) => res.json(proveedoresDisponibles()));
 rutasVentas.get('/:id', asincrono((req, res) => res.json(obtenerVenta(Number(req.params.id), req.usuario))));
 rutasVentas.get('/:id/recibo.pdf', asincrono(async (req, res) => { obtenerVenta(Number(req.params.id), req.usuario); pdf(res, `recibo-venta-${req.params.id}.pdf`, await reciboVenta(Number(req.params.id))); }));
 rutasVentas.post('/', validar(esquemaVenta), asincrono((req, res) => res.status(201).json(crearVenta(req.datos, req.usuario))));
-rutasVentas.post('/:id/pagos', validar(esquemaPago), asincrono((req, res) => res.status(201).json(registrarPago(Number(req.params.id), req.datos, req.usuario))));
-rutasVentas.post('/:id/enlace-pago', validar(z.object({ proveedor: z.enum(['demo', 'stripe', 'paypal']) })),
+rutasVentas.post('/:id/pagos', validar(esquemaPago), asincrono((req, res) => {
+  const v = registrarPago(Number(req.params.id), req.datos, req.usuario);
+  if (req.usuario.rol !== 'superadmin') alertarDuenoSinEsperar('pago_por_confirmar', `${req.usuario.nombre} registró ${req.datos.monto} ${v.moneda} (${req.datos.metodo}) de ${v.cliente_nombre} · venta ${v.numero}`, { referencia: `${v.id}:${v.pagos.length}`, url: `/ventas/${v.id}` });
+  res.status(201).json(v);
+}));
+rutasVentas.post('/:id/enlace-pago', validar(z.object({ proveedor: z.enum(['demo', 'stripe', 'paypal', 'culqi']) })),
   asincrono(async (req, res) => res.status(201).json(await crearEnlace(Number(req.params.id), req.datos.proveedor, req.usuario))));
 rutasVentas.post(
   '/:id/anular',

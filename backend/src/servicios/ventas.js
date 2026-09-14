@@ -91,6 +91,8 @@ export function crearVenta(datos, actor, { origen = null } = {}) {
   const totalBase = redondear(precioUnitarioBase * cantidad * (1 - descuento / 100));
   const total = redondear(totalBase * tipoCambio);
   const usaCupo = revendedor && !esDemo && !esRenovacion && (vendedor.cupo_licencias ?? 0) >= cantidad;
+  const cuotas = esDemo || esRenovacion ? 1 : Math.max(1, Math.min(Number(datos.cuotas) || 1, plan.cuotas || 1));
+  if ((Number(datos.cuotas) || 1) > (plan.cuotas || 1)) throw new ErrorHttp(422, `Este plan admite hasta ${plan.cuotas || 1} cuota(s)`);
 
   return transaccion((db) => {
     const anio = new Date().getUTCFullYear();
@@ -99,15 +101,21 @@ export function crearVenta(datos, actor, { origen = null } = {}) {
     const r = db
       .prepare(
         `INSERT INTO ventas (numero, cliente_id, vendedor_id, creado_por, producto_id, plan_id, renueva_licencia_id, cantidad,
-          precio_unitario, descuento_pct, total, total_base, moneda, tipo_cambio, estado, es_renovacion, notas, pagada_en)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          precio_unitario, descuento_pct, total, total_base, moneda, tipo_cambio, estado, es_renovacion, notas, pagada_en, cuotas)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         numero, cliente.id, vendedorId, actor.id, plan.producto_id, plan.id, datos.renueva_licencia_id ?? null, cantidad,
         redondear(precioUnitarioBase * tipoCambio), descuento, total, totalBase, moneda, tipoCambio,
-        esDemo ? 'pagada' : 'pendiente', esRenovacion ? 1 : 0, [origen ? `Origen: ${origen}` : null, datos.notas].filter(Boolean).join(' · ') || null, esDemo ? ahoraSql() : null
+        esDemo ? 'pagada' : 'pendiente', esRenovacion ? 1 : 0, [origen ? `Origen: ${origen}` : null, datos.notas].filter(Boolean).join(' · ') || null, esDemo ? ahoraSql() : null, cuotas
       );
     const ventaId = Number(r.lastInsertRowid);
+    if (cuotas > 1) {
+      // Cuotas mensuales iguales; la última absorbe el redondeo. La primera vence hoy.
+      const base = Math.floor((total / cuotas) * 100) / 100;
+      const ins = db.prepare('INSERT INTO cuotas (venta_id, numero, monto, vence_en) VALUES (?, ?, ?, ?)');
+      for (let n = 1; n <= cuotas; n++) ins.run(ventaId, n, n === cuotas ? redondear(total - base * (cuotas - 1)) : base, ahoraSql(30 * (n - 1)));
+    }
 
     if (!esRenovacion) {
       const insertar = db.prepare(
@@ -183,6 +191,7 @@ export function obtenerVenta(id, usuario) {
   if (v.renueva_licencia_id) v.licencia_renovada = db.prepare('SELECT * FROM licencias WHERE id = ?').get(v.renueva_licencia_id);
   v.comisiones = db.prepare('SELECT * FROM comisiones WHERE venta_id = ? ORDER BY id').all(id);
   v.enlaces_pago = db.prepare('SELECT id, proveedor, url, monto, moneda, estado, creado_en, pagado_en FROM enlaces_pago WHERE venta_id = ? ORDER BY id DESC').all(id);
+  v.cuotas_detalle = v.cuotas > 1 ? db.prepare('SELECT * FROM cuotas WHERE venta_id = ? ORDER BY numero').all(v.id) : [];
   v.saldo = redondear(v.total - v.pagado);
   v.moneda_base = ajuste('moneda_base', 'USD');
   return v;
@@ -253,9 +262,25 @@ export function procesarPagoConfirmado(db, pagoId, actorId) {
 
   const pagado = db.prepare("SELECT COALESCE(SUM(monto),0) AS s FROM pagos WHERE venta_id = ? AND estado = 'confirmado'").get(venta.id).s;
   let activadas = 0;
+  if (venta.cuotas > 1) {
+    // Se van cubriendo cuotas en orden con lo pagado; la licencia se activa con la primera.
+    let restante = pagado + 0.005;
+    const cuotas = db.prepare('SELECT * FROM cuotas WHERE venta_id = ? ORDER BY numero').all(venta.id);
+    for (const c of cuotas) {
+      if (restante >= c.monto) { restante -= c.monto; if (c.estado !== 'pagada') db.prepare("UPDATE cuotas SET estado = 'pagada', pagada_en = ? WHERE id = ?").run(ahora, c.id); }
+      else break;
+    }
+    const primera = cuotas[0];
+    if (primera && pagado + 0.005 >= primera.monto) {
+      activadas = activarLicenciasDeVenta(db, venta, plan, ahora);
+      // Si estaban suspendidas por cuota vencida y ya no hay cuotas vencidas, se reanudan.
+      const vencidas = db.prepare("SELECT COUNT(*) AS n FROM cuotas WHERE venta_id = ? AND estado = 'vencida'").get(venta.id).n;
+      if (vencidas === 0) db.prepare("UPDATE licencias SET estado = 'activa', motivo_estado = NULL WHERE venta_id = ? AND estado = 'suspendida' AND motivo_estado LIKE 'Cuota %'").run(venta.id);
+    }
+  }
   if (pagado + 0.005 >= venta.total && venta.estado !== 'pagada') {
     db.prepare("UPDATE ventas SET estado = 'pagada', pagada_en = ? WHERE id = ?").run(ahora, venta.id);
-    activadas = activarLicenciasDeVenta(db, venta, plan, ahora);
+    if (venta.cuotas <= 1) activadas = activarLicenciasDeVenta(db, venta, plan, ahora);
   }
   auditar({ usuarioId: actorId, accion: actorId ? 'pago.confirmar' : 'pago.confirmar_automatico', entidad: 'pago', entidadId: pagoId,
     detalle: { venta: venta.numero, monto: pago.monto, moneda: venta.moneda, base, comision: monto, pct, licencias_activadas: activadas } });

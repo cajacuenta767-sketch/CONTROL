@@ -26,8 +26,8 @@ export function crearApp() {
   app.use(helmet({
     contentSecurityPolicy: {
       directives: {
-        defaultSrc: ["'self'"], scriptSrc: ["'self'"], styleSrc: ["'self'", "'unsafe-inline'"], imgSrc: ["'self'", 'data:', 'blob:'],
-        connectSrc: ["'self'"], fontSrc: ["'self'", 'data:'], objectSrc: ["'none'"], frameAncestors: ["'none'"], baseUri: ["'self'"], formAction: ["'self'"],
+        defaultSrc: ["'self'"], scriptSrc: ["'self'", 'https://checkout.culqi.com'], styleSrc: ["'self'", "'unsafe-inline'"], imgSrc: ["'self'", 'data:', 'blob:', 'https://*.culqi.com'],
+        connectSrc: ["'self'", 'https://*.culqi.com'], frameSrc: ['https://checkout.culqi.com', 'https://*.culqi.com'], fontSrc: ["'self'", 'data:'], objectSrc: ["'none'"], frameAncestors: ["'none'"], baseUri: ["'self'"], formAction: ["'self'"],
       },
     },
     crossOriginEmbedderPolicy: false,

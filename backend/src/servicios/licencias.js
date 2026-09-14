@@ -2,6 +2,7 @@ import { obtenerDb, transaccion, ajusteNumero, ahoraSql } from '../db.js';
 import { ErrorHttp, noEncontrado, prohibido } from '../middleware/errores.js';
 import { esGestor } from '../middleware/auth.js';
 import { auditar } from './auditoria.js';
+import { alertarDuenoSinEsperar } from './mensajeria.js';
 import { tokenParaLicencia, firmarToken } from '../firmas.js';
 
 const BASE = `SELECT l.*, c.nombre AS cliente_nombre, c.empresa AS cliente_empresa, c.email AS cliente_email,
@@ -170,7 +171,12 @@ export function activar({ clave, producto, huella, dominio, nombre_equipo, versi
     return activarEnTransaccion({ clave, producto, huella, dominio, nombre_equipo, version, ip });
   } catch (e) {
     // El rechazo se audita fuera de la transacción para que sobreviva al ROLLBACK.
-    if (e.auditoria) auditar(e.auditoria);
+    if (e.auditoria) {
+      auditar(e.auditoria);
+      const d = e.auditoria.detalle || {};
+      const clonada = e.cuerpo?.codigo === 'max_activaciones' || d.motivo?.includes('otro equipo');
+      alertarDuenoSinEsperar(clonada ? 'instalacion_clonada' : 'activacion_rechazada', `Clave ${d.clave} · ${d.motivo} · equipo ${d.huella || '?'} · IP ${ip || '?'}`, { referencia: `${d.clave}:${d.huella}:${new Date().toISOString().slice(0, 10)}`, url: e.auditoria.entidadId ? `/licencias/${e.auditoria.entidadId}` : '/auditoria' });
+    }
     throw e;
   }
 }

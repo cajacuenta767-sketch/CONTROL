@@ -89,7 +89,7 @@ export function actualizarProducto(id, datos, actor) {
   obtenerProducto(id);
   const campos = [];
   const valores = [];
-  for (const k of ['nombre', 'descripcion', 'activo', 'version_actual']) {
+  for (const k of ['nombre', 'descripcion', 'activo', 'version_actual', 'material']) {
     if (datos[k] !== undefined) { campos.push(`${k} = ?`); valores.push(typeof datos[k] === 'boolean' ? Number(datos[k]) : datos[k]); }
   }
   if (campos.length) obtenerDb().prepare(`UPDATE productos SET ${campos.join(', ')} WHERE id = ?`).run(...valores, id);
@@ -116,10 +116,10 @@ export function crearPlan(datos, actor) {
   const duracion = datos.duracion_dias !== undefined ? datos.duracion_dias : DURACION_POR_TIPO[datos.tipo];
   const r = db
     .prepare(
-      `INSERT INTO planes (producto_id, codigo, nombre, tipo, precio, duracion_dias, max_activaciones, comision_pct)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO planes (producto_id, codigo, nombre, tipo, precio, duracion_dias, max_activaciones, comision_pct, cuotas)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
-    .run(datos.producto_id, datos.codigo, datos.nombre, datos.tipo, datos.precio, duracion, datos.max_activaciones ?? 1, datos.comision_pct ?? null);
+    .run(datos.producto_id, datos.codigo, datos.nombre, datos.tipo, datos.precio, duracion, datos.max_activaciones ?? 1, datos.comision_pct ?? null, datos.cuotas ?? 1);
   const id = Number(r.lastInsertRowid);
   auditar({ usuarioId: actor.id, accion: 'plan.crear', entidad: 'plan', entidadId: id, detalle: datos });
   return obtenerPlan(id);
@@ -129,7 +129,7 @@ export function actualizarPlan(id, datos, actor) {
   obtenerPlan(id);
   const campos = [];
   const valores = [];
-  for (const k of ['nombre', 'precio', 'duracion_dias', 'max_activaciones', 'comision_pct', 'activo']) {
+  for (const k of ['nombre', 'precio', 'duracion_dias', 'max_activaciones', 'comision_pct', 'activo', 'cuotas']) {
     if (datos[k] !== undefined) { campos.push(`${k} = ?`); valores.push(typeof datos[k] === 'boolean' ? Number(datos[k]) : datos[k]); }
   }
   const antes = obtenerPlan(id);

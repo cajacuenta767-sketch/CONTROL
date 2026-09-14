@@ -20,7 +20,7 @@ rutasProductos.post(
 rutasProductos.patch(
   '/:id',
   requerirRol('superadmin'),
-  validar(z.object({ nombre: z.string().min(2).optional(), descripcion: z.string().nullable().optional(), activo: z.boolean().optional(), version_actual: z.string().max(40).nullable().optional() })),
+  validar(z.object({ nombre: z.string().min(2).optional(), descripcion: z.string().nullable().optional(), activo: z.boolean().optional(), version_actual: z.string().max(40).nullable().optional(), material: z.string().max(20000).nullable().optional() })),
   asincrono((req, res) => res.json(actualizarProducto(Number(req.params.id), req.datos, req.usuario)))
 );
 
@@ -36,6 +36,7 @@ const esquemaPlan = z.object({
   duracion_dias: z.number().int().positive().nullable().optional(),
   max_activaciones: z.number().int().min(1).optional(),
   comision_pct: z.number().min(0).max(100).nullable().optional(),
+  cuotas: z.number().int().min(1).max(12).optional(),
 });
 
 rutasPlanes.post('/', validar(esquemaPlan), asincrono((req, res) => res.status(201).json(crearPlan(req.datos, req.usuario))));

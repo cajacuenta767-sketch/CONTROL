@@ -6,7 +6,7 @@ import { Cargando, LimiteErrores } from './componentes/ui';
 import { Buscador } from './componentes/buscador';
 import { Login } from './paginas/Login';
 import { Recuperar, Restablecer, CambiarClave } from './paginas/Recuperar';
-import { Comprar, PagarDemo, PagoResultado, PedidoPublico } from './paginas/Publico';
+import { Comprar, PagarDemo, PagarCulqi, PagoResultado, PedidoPublico } from './paginas/Publico';
 import { Panel } from './paginas/Panel';
 import { Ventas } from './paginas/Ventas';
 import { VentaNueva } from './paginas/VentaNueva';
@@ -75,6 +75,7 @@ export function App() {
         <Route path="/portal/inicio" element={<PortalInicio />} />
         <Route path="/comprar" element={<Comprar />} />
         <Route path="/pagar/demo/:id" element={<PagarDemo />} />
+        <Route path="/pagar/culqi/:id" element={<PagarCulqi />} />
         <Route path="/pago-exitoso" element={<PagoResultado exito />} />
         <Route path="/pago-cancelado" element={<PagoResultado exito={false} />} />
         <Route path="/pedido/:numero" element={<PedidoPublico />} />

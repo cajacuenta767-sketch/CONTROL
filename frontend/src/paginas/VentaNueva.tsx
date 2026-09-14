@@ -20,6 +20,7 @@ export function VentaNueva() {
   const [cantidad, setCantidad] = useState(1);
   const [etiquetas, setEtiquetas] = useState<string[]>([]);
   const [descuento, setDescuento] = useState(0);
+  const [cuotas, setCuotas] = useState(1);
   const [vendedorId, setVendedorId] = useState('');
   const [notas, setNotas] = useState('');
   const [renueva, setRenueva] = useState(params.get('renueva') || '');
@@ -54,7 +55,7 @@ export function VentaNueva() {
   const enviar = async () => {
     const v = await api.post<any>('/ventas', {
       cliente_id: Number(clienteId), plan_id: Number(planId), cantidad: esRenovacion ? 1 : cantidad,
-      etiquetas: etiquetas.map((e, i) => e || `Sucursal ${i + 1}`), descuento_pct: descuento || undefined,
+      etiquetas: etiquetas.map((e, i) => e || `Sucursal ${i + 1}`), descuento_pct: descuento || undefined, cuotas: cuotas > 1 ? cuotas : undefined,
       vendedor_id: vendedorId ? Number(vendedorId) : undefined, notas: notas || undefined,
       renueva_licencia_id: renueva ? Number(renueva) : undefined,
     });
@@ -109,6 +110,11 @@ export function VentaNueva() {
                 {!esSuper && descuento > topeDesc && <span className="estado mal" style={{ marginTop: 4 }}>Supera tu tope de {topeDesc}%</span>}
               </Campo>
             )}
+            {plan && plan.cuotas > 1 && !esRenovacion && (
+              <Campo etiqueta="Forma de pago" ayuda={`Este plan admite hasta ${plan.cuotas} cuotas mensuales. La licencia se activa con la primera; si una cuota vence sin pagar, el sistema se pausa hasta regularizar.`}>
+                <div className="chips">{Array.from({ length: plan.cuotas }, (_, i) => i + 1).map((n) => <button type="button" key={n} className={`chip ${cuotas === n ? 'activo' : ''}`} onClick={() => setCuotas(n)}>{n === 1 ? 'Al contado' : `${n} cuotas de ${dinero(total / n, monedaCliente)}`}</button>)}</div>
+              </Campo>
+            )}
             {esGestor && (
               <Campo etiqueta="Vendedor que lleva la comisión" ayuda="Por defecto, el vendedor del cliente o quien registra.">
                 <select value={vendedorId} onChange={(e) => setVendedorId(e.target.value)}>
@@ -130,6 +136,7 @@ export function VentaNueva() {
             <dt>Licencias</dt><dd>{esRenovacion ? 'Renueva 1 existente' : cantidad}</dd>
             <dt>Descuento</dt><dd>{descuentoEfectivo}%{esRevendedor && <span className="suave pequeno"> (mayorista)</span>}</dd>
             <dt>Moneda</dt><dd>{monedaCliente}{monedaCliente !== monedaBase && (tipoCambio ? <span className="suave pequeno"> · T.C. {tipoCambio}</span> : <span className="estado mal"> sin tipo de cambio</span>)}</dd>
+            {cuotas > 1 && <><dt>Cuotas</dt><dd>{cuotas} × {dinero(total / cuotas, monedaCliente)} <span className="suave pequeno">una al mes</span></dd></>}
             <dt><strong>Total</strong></dt><dd><strong>{dinero(total, monedaCliente)}</strong>{monedaCliente !== monedaBase && tipoCambio ? <span className="suave pequeno"> · {dinero(totalBase, monedaBase)}</span> : null}</dd>
             {!esRevendedor && <><dt>Comisión ({pct}%)</dt><dd>{dinero((totalBase * pct) / 100, monedaBase)} <span className="suave pequeno">se devenga al confirmar el cobro</span></dd></>}
           </dl>

@@ -83,7 +83,7 @@ export function Comprar() {
               <div className="grid-3" style={{ gap: 8 }}>
                 <Campo etiqueta="Sucursales"><input type="number" min={1} max={20} value={cantidad} onChange={(e) => setCantidad(Math.max(1, Number(e.target.value)))} /></Campo>
                 <Campo etiqueta="Moneda"><select value={moneda} onChange={(e) => setMoneda(e.target.value)}>{Object.keys(cat.tipos_cambio || { [cat.moneda_base]: 1 }).map((m) => <option key={m} value={m}>{m}</option>)}</select></Campo>
-                <Campo etiqueta="Pago"><select value={pasarela} onChange={(e) => setPasarela(e.target.value)}><option value="">Coordinar después</option>{Object.entries(cat.pasarelas).filter(([, on]) => on).map(([k]) => <option key={k} value={k}>{k === 'demo' ? 'Demostración' : k === 'stripe' ? 'Tarjeta' : 'PayPal'}</option>)}</select></Campo>
+                <Campo etiqueta="Pago"><select value={pasarela} onChange={(e) => setPasarela(e.target.value)}><option value="">Coordinar después</option>{Object.entries(cat.pasarelas).filter(([, on]) => on).map(([k]) => <option key={k} value={k}>{k === 'demo' ? 'Demostración' : k === 'stripe' ? 'Tarjeta (Stripe)' : k === 'culqi' ? 'Yape / tarjeta (Culqi)' : 'PayPal'}</option>)}</select></Campo>
               </div>
               <div className="indicador" style={{ marginBottom: 12 }}><span className="indicador-etiqueta">Total</span><strong className="indicador-valor">{plan ? dinero(total, moneda) : '—'}</strong>{plan && <span className="indicador-detalle">{plan.producto.nombre} · {ETIQUETA_ESTADO[plan.tipo]} × {cantidad}</span>}</div>
             </Formulario>
@@ -116,6 +116,59 @@ export function PagarDemo() {
             </Formulario>
           </>
         )}
+      </Tarjeta>
+    </Marco>
+  );
+}
+
+/** Pago con Culqi (Yape, tarjeta, PagoEfectivo): /pagar/culqi/:id. Carga el checkout oficial de Culqi. */
+export function PagarCulqi() {
+  const { id } = useParams();
+  const [e, setE] = useState<any | null>(null);
+  const [estado, setEstado] = useState<'listo' | 'cargando' | 'pagado' | 'error'>('cargando');
+  const [error, setError] = useState('');
+  useEffect(() => {
+    api.get<any>(`/publico/enlaces/${id}/culqi`).then((d) => {
+      setE(d);
+      if (d.estado === 'pagado') { setEstado('pagado'); return; }
+      const sc = document.createElement('script'); sc.src = 'https://checkout.culqi.com/js/v4'; sc.async = true;
+      sc.onload = () => setEstado('listo'); sc.onerror = () => { setEstado('error'); setError('No se pudo cargar el checkout de Culqi'); };
+      document.body.appendChild(sc);
+    }).catch((err) => { setEstado('error'); setError(err.message); });
+  }, [id]);
+  const abrir = () => {
+    const C = (window as any).Culqi;
+    if (!C || !e) return;
+    C.publicKey = e.clave_publica;
+    C.settings({ title: e.agencia, currency: e.moneda, amount: e.monto_centimos, order: e.orden_id || undefined });
+    C.options({ lang: 'auto', installments: false, paymentMethods: { tarjeta: true, yape: true, billetera: true, bancaMovil: true, agente: true, cuotealo: false }, style: { logo: `${window.location.origin}/favicon.svg` } });
+    (window as any).culqi = async () => {
+      if (C.token) {
+        try { await api.post(`/publico/enlaces/${id}/culqi/cargo`, { token_id: C.token.id, email: C.token.email }); setEstado('pagado'); }
+        catch (err) { setEstado('error'); setError(err instanceof Error ? err.message : 'El cargo fue rechazado'); }
+      } else if (C.order) {
+        // Yape / PagoEfectivo: Culqi avisa por webhook cuando se pague.
+        setEstado('pagado'); setError('');
+      } else if (C.error) { setEstado('error'); setError(C.error.user_message || 'Pago no completado'); }
+      C.close?.();
+    };
+    C.open();
+  };
+  if (!e) return <Marco><Cargando /></Marco>;
+  return (
+    <Marco agencia={e.agencia}>
+      <Tarjeta>
+        <h2>Pago de {dinero(e.monto, e.moneda)}</h2>
+        <p className="suave">{e.producto_nombre} · {e.plan_nombre} · pedido {e.venta_numero} · {e.cliente_nombre}</p>
+        {estado === 'pagado' ? <Aviso tipo="ok">Pago recibido. Si pagaste con Yape o PagoEfectivo, la confirmación llega en unos minutos y tus licencias se activan solas. <Link to={`/pedido/${e.venta_numero}`}>Ver mi pedido</Link></Aviso>
+          : e.estado !== 'pendiente' ? <Aviso tipo="error">Este enlace ya no está vigente.</Aviso>
+          : estado === 'error' ? <><Aviso tipo="error">{error}</Aviso><button className="btn" onClick={() => { setEstado('listo'); setError(''); }}>Intentar de nuevo</button></>
+          : (
+            <>
+              <p>Paga con <strong>Yape</strong>, tarjeta de crédito o débito, o en agentes con PagoEfectivo. El cobro lo procesa Culqi; nosotros no vemos los datos de tu tarjeta.</p>
+              <button className="btn" disabled={estado !== 'listo'} onClick={abrir}>{estado === 'listo' ? 'Pagar ahora' : 'Cargando pasarela…'}</button>
+            </>
+          )}
       </Tarjeta>
     </Marco>
   );

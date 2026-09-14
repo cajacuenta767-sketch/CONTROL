@@ -33,6 +33,7 @@ export function Catalogo() {
             { titulo: 'Duración', celda: (pl: any) => pl.duracion_dias ? `${pl.duracion_dias} días` : pl.tipo === 'vitalicio' || pl.tipo === 'sucursal_extra' ? 'Sin vencimiento' : '—' },
             { titulo: 'Equipos', celda: (pl: any) => pl.max_activaciones, alinear: 'derecha' },
             { titulo: 'Comisión', celda: (pl: any) => pl.comision_pct != null ? `${pl.comision_pct}%` : 'la del vendedor' },
+            { titulo: 'Cuotas', celda: (pl: any) => pl.cuotas > 1 ? `hasta ${pl.cuotas}` : 'contado', alinear: 'derecha' },
             { titulo: '', celda: (pl: any) => <>{!pl.activo && <Estado valor="suspendida" />} {esSuper && <button className="btn secundario chico" onClick={() => setEditPlan({ ...pl, comision_pct: pl.comision_pct ?? '' })}>Editar</button>}</> },
           ]} />
         </Tarjeta>
@@ -60,12 +61,13 @@ export function Catalogo() {
 
       <Modal titulo={`Editar plan · ${editPlan?.nombre || ''}`} abierto={Boolean(editPlan)} cerrar={() => setEditPlan(null)}>
         {editPlan && (
-          <Formulario onEnviar={async () => { await api.patch(`/planes/${editPlan.id}`, { nombre: editPlan.nombre, precio: Number(editPlan.precio), max_activaciones: Number(editPlan.max_activaciones), comision_pct: editPlan.comision_pct === '' ? null : Number(editPlan.comision_pct), duracion_dias: editPlan.duracion_dias ? Number(editPlan.duracion_dias) : null, activo: Boolean(editPlan.activo) }); setEditPlan(null); await cargar(); }} cancelar={() => setEditPlan(null)} exito="Plan actualizado">
+          <Formulario onEnviar={async () => { await api.patch(`/planes/${editPlan.id}`, { nombre: editPlan.nombre, precio: Number(editPlan.precio), max_activaciones: Number(editPlan.max_activaciones), comision_pct: editPlan.comision_pct === '' ? null : Number(editPlan.comision_pct), duracion_dias: editPlan.duracion_dias ? Number(editPlan.duracion_dias) : null, activo: Boolean(editPlan.activo), cuotas: Number(editPlan.cuotas || 1) }); setEditPlan(null); await cargar(); }} cancelar={() => setEditPlan(null)} exito="Plan actualizado">
             <Campo etiqueta="Nombre"><input value={editPlan.nombre} onChange={(e) => setEditPlan({ ...editPlan, nombre: e.target.value })} required /></Campo>
             <Campo etiqueta="Precio"><input type="number" step="0.01" min={0} value={editPlan.precio} onChange={(e) => setEditPlan({ ...editPlan, precio: e.target.value })} /></Campo>
             <Campo etiqueta="Duración en días"><input type="number" min={1} value={editPlan.duracion_dias || ''} onChange={(e) => setEditPlan({ ...editPlan, duracion_dias: e.target.value })} /></Campo>
             <Campo etiqueta="Equipos por licencia"><input type="number" min={1} value={editPlan.max_activaciones} onChange={(e) => setEditPlan({ ...editPlan, max_activaciones: e.target.value })} /></Campo>
             <Campo etiqueta="Comisión % (vacío = la del vendedor)"><input type="number" min={0} max={100} step={0.5} value={editPlan.comision_pct} onChange={(e) => setEditPlan({ ...editPlan, comision_pct: e.target.value })} /></Campo>
+            <Campo etiqueta="Cuotas máximas" ayuda="1 = solo al contado. Con más, el vendedor puede ofrecer pago mensual en cuotas; la licencia se activa con la primera."><input type="number" min={1} max={12} value={editPlan.cuotas ?? 1} onChange={(e) => setEditPlan({ ...editPlan, cuotas: Number(e.target.value) })} /></Campo>
             <Campo etiqueta="Activo"><select value={editPlan.activo ? '1' : '0'} onChange={(e) => setEditPlan({ ...editPlan, activo: e.target.value === '1' })}><option value="1">Sí</option><option value="0">No</option></select></Campo>
           </Formulario>
         )}

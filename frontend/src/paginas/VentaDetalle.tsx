@@ -60,6 +60,14 @@ export function VentaDetalle() {
       </header>
 
       {v.estado === 'anulada' && <Aviso tipo="error">Anulada: {v.motivo_anulacion}. Licencias revocadas y comisiones revertidas.</Aviso>}
+      {v.cuotas > 1 && (
+        <Tarjeta titulo={`Pago en ${v.cuotas} cuotas`} className="no-imprimir">
+          <div className="chips">
+            {v.cuotas_detalle.map((c: any) => <span key={c.id} className={`chip ${c.estado === 'pagada' ? 'activo' : ''}`} style={c.estado === 'vencida' ? { borderColor: 'var(--mal)', color: 'var(--mal)' } : undefined}>Cuota {c.numero} · {dinero(c.monto, v.moneda)} · {c.estado === 'pagada' ? `pagada ${fecha(c.pagada_en)}` : c.estado === 'vencida' ? `vencida el ${fecha(c.vence_en)}` : `vence ${fecha(c.vence_en)}`}</span>)}
+          </div>
+          <p className="suave pequeno" style={{ margin: '8px 0 0' }}>La licencia se activó con la primera cuota. Si una cuota vence y pasa la gracia, el sistema del cliente se pausa solo hasta que pague.</p>
+        </Tarjeta>
+      )}
       {v.estado === 'pendiente' && v.por_confirmar > 0 && <Aviso tipo="alerta">Hay {dinero(v.por_confirmar, v.moneda)} registrados que esperan confirmación de un administrador. Las licencias se activan cuando el total esté confirmado.</Aviso>}
       {v.estado === 'pagada' && activas.length > 0 && v.licencias.every((l: any) => l.estado === 'activa') && <Aviso tipo="ok">Pago completo. Las licencias están activas: envíale las claves al cliente.</Aviso>}
       {enlaceVigente && (
@@ -146,7 +154,7 @@ export function VentaDetalle() {
           <p className="suave">El cliente paga en línea por {dinero(pendienteReal, v.moneda)}. Al completarse, el cobro se confirma automáticamente y se activan las licencias.</p>
           <Campo etiqueta="Pasarela">
             <select value={proveedor} onChange={(e) => setProveedor(e.target.value)}>
-              {proveedoresActivos.map((p) => <option key={p} value={p}>{p === 'demo' ? 'Demostración (no cobra de verdad)' : p === 'stripe' ? 'Stripe (tarjeta)' : 'PayPal'}</option>)}
+              {proveedoresActivos.map((p) => <option key={p} value={p}>{p === 'demo' ? 'Demostración (no cobra de verdad)' : p === 'stripe' ? 'Stripe (tarjeta)' : p === 'culqi' ? 'Culqi (Yape, tarjeta, PagoEfectivo)' : 'PayPal'}</option>)}
             </select>
           </Campo>
         </Formulario>

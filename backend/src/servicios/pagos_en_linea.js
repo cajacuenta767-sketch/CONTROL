@@ -14,7 +14,79 @@ export function proveedoresDisponibles() {
     demo: ajuste('pasarela_demo', '1') === '1',
     stripe: Boolean(ajuste('stripe_clave_secreta', '')),
     paypal: Boolean(ajuste('paypal_cliente', '') && ajuste('paypal_secreto', '')),
+    culqi: Boolean(ajuste('culqi_clave_publica', '') && ajuste('culqi_clave_secreta', '')),
   };
+}
+
+/* ---------- Culqi (Perú: Yape, tarjetas, PagoEfectivo) ---------- */
+
+const CULQI_API = 'https://api.culqi.com/v2';
+const culqiCab = () => ({ Authorization: `Bearer ${ajuste('culqi_clave_secreta')}`, 'Content-Type': 'application/json' });
+const culqiMenor = (monto) => Math.round(monto * 100); // PEN y USD en céntimos
+
+/** Orden Culqi: permite pagar con Yape o PagoEfectivo desde el checkout; se confirma por webhook. */
+async function culqiCrearOrden(enlace, venta) {
+  if (!['PEN', 'USD'].includes(venta.moneda)) throw new ErrorHttp(422, 'Culqi solo cobra en PEN o USD');
+  const partes = String(venta.cliente_nombre || 'Cliente').trim().split(/\s+/);
+  const cuerpo = {
+    amount: culqiMenor(enlace.monto), currency_code: venta.moneda, description: `${venta.producto_nombre} · ${venta.plan_nombre} (${venta.numero})`.slice(0, 80),
+    order_number: `enlace-${enlace.id}`, expiration_date: Math.floor(Date.now() / 1000) + 3 * 86400,
+    client_details: { first_name: partes[0]?.slice(0, 50) || 'Cliente', last_name: (partes.slice(1).join(' ') || '-').slice(0, 50), email: venta.cliente_email || 'sin-correo@control.local', phone_number: String(venta.cliente_telefono || '').replace(/\D/g, '') || '999999999' },
+    metadata: { enlace_id: String(enlace.id), venta: venta.numero },
+  };
+  const r = await fetch(`${CULQI_API}/orders`, { method: 'POST', headers: culqiCab(), body: JSON.stringify(cuerpo) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new ErrorHttp(502, `Culqi: ${d.user_message || d.merchant_message || 'no se pudo crear la orden'}`);
+  return { id_externo: d.id, url: `${urlPublica()}/pagar/culqi/${enlace.id}` };
+}
+
+/** Datos que necesita el checkout de Culqi en el navegador (clave pública, monto en céntimos, orden). */
+export function culqiDatosCheckout(enlaceId) {
+  const e = obtenerEnlacePublico(enlaceId);
+  if (e.proveedor !== 'culqi') throw noEncontrado('Enlace de pago no encontrado');
+  const fila = obtenerDb().prepare('SELECT id_externo FROM enlaces_pago WHERE id = ?').get(enlaceId);
+  return { ...e, clave_publica: ajuste('culqi_clave_publica', ''), monto_centimos: culqiMenor(e.monto), orden_id: fila?.id_externo ?? null };
+}
+
+/** Cargo con tarjeta: el checkout devuelve un token y el servidor crea el cargo. */
+export async function culqiCobrarConToken(enlaceId, { token_id, email }) {
+  const db = obtenerDb();
+  const e = db.prepare('SELECT * FROM enlaces_pago WHERE id = ?').get(enlaceId);
+  if (!e || e.proveedor !== 'culqi') throw noEncontrado('Enlace de pago no encontrado');
+  if (e.estado === 'pagado') return { ya_pagado: true };
+  if (e.estado !== 'pendiente') throw new ErrorHttp(422, 'El enlace ya no está vigente');
+  const r = await fetch(`${CULQI_API}/charges`, { method: 'POST', headers: culqiCab(), body: JSON.stringify({ amount: culqiMenor(e.monto), currency_code: e.moneda, email: email || 'sin-correo@control.local', source_id: token_id, metadata: { enlace_id: String(e.id) } }) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || !d.id) throw new ErrorHttp(402, `Culqi: ${d.user_message || d.merchant_message || 'el cargo fue rechazado'}`);
+  return confirmarEnlace(enlaceId, { id_externo: d.id, detalle: { culqi_cargo: d.id, marca: d.source?.iin?.card_brand, ultimos4: d.source?.card_number?.slice(-4) } });
+}
+
+/**
+ * Webhook de Culqi. Culqi no firma los eventos, así que nunca se confía en el cuerpo: se
+ * consulta el recurso en la API con la clave secreta y solo se confirma si allí figura pagado.
+ */
+export async function webhookCulqi(evento) {
+  const tipo = evento?.type || evento?.object;
+  let datos = evento?.data;
+  if (typeof datos === 'string') { try { datos = JSON.parse(datos); } catch { datos = null; } }
+  if (!datos?.id) return { ignorado: true };
+  if (tipo === 'order.status.changed' || String(datos.object) === 'order') {
+    const r = await fetch(`${CULQI_API}/orders/${datos.id}`, { headers: culqiCab() });
+    const orden = await r.json().catch(() => ({}));
+    if (!r.ok || orden.state !== 'paid') return { ignorado: true, estado: orden.state };
+    const enlaceId = Number(orden.metadata?.enlace_id || String(orden.order_number || '').replace('enlace-', ''));
+    if (!enlaceId) return { ignorado: true };
+    return confirmarEnlace(enlaceId, { id_externo: orden.id, detalle: { culqi_orden: orden.id, medio: orden.payment_code ? 'pagoefectivo' : 'yape' } });
+  }
+  if (tipo === 'charge.creation.succeeded' || String(datos.object) === 'charge') {
+    const r = await fetch(`${CULQI_API}/charges/${datos.id}`, { headers: culqiCab() });
+    const cargo = await r.json().catch(() => ({}));
+    if (!r.ok || !cargo.id || cargo.outcome?.type !== 'venta_exitosa') return { ignorado: true };
+    const enlaceId = Number(cargo.metadata?.enlace_id);
+    if (!enlaceId) return { ignorado: true };
+    return confirmarEnlace(enlaceId, { id_externo: cargo.id, detalle: { culqi_cargo: cargo.id } });
+  }
+  return { ignorado: true };
 }
 
 /* ---------- Stripe (API REST directa, sin SDK) ---------- */
@@ -122,6 +194,7 @@ export async function crearEnlace(ventaId, proveedor, actor) {
   try {
     if (proveedor === 'stripe') externo = await stripeCrearSesion(enlace, venta);
     else if (proveedor === 'paypal') externo = await paypalCrearOrden(enlace, venta);
+    else if (proveedor === 'culqi') externo = await culqiCrearOrden(enlace, venta);
     else externo = { id_externo: `demo-${enlace.id}`, url: `${urlPublica()}/pagar/demo/${enlace.id}` };
   } catch (e) {
     db.prepare("UPDATE enlaces_pago SET estado = 'cancelado', datos = ? WHERE id = ?").run(JSON.stringify({ error: e.message }), enlace.id);
@@ -151,7 +224,7 @@ export function confirmarEnlace(enlaceId, { id_externo, detalle } = {}) {
     const venta = db.prepare('SELECT * FROM ventas WHERE id = ?').get(e.venta_id);
     db.prepare("UPDATE enlaces_pago SET estado = 'pagado', pagado_en = ?, id_externo = COALESCE(?, id_externo), datos = ? WHERE id = ?")
       .run(ahoraSql(), id_externo ?? null, detalle ? JSON.stringify(detalle) : null, e.id);
-    const metodo = e.proveedor === 'stripe' ? 'stripe' : e.proveedor === 'paypal' ? 'paypal' : 'otro';
+    const metodo = e.proveedor === 'stripe' ? 'stripe' : e.proveedor === 'paypal' ? 'paypal' : e.proveedor === 'culqi' ? (detalle?.medio === 'yape' ? 'yape' : 'tarjeta') : 'otro';
     const pago = db
       .prepare('INSERT INTO pagos (venta_id, monto, monto_base, metodo, referencia, registrado_por, enlace_pago_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
       .run(e.venta_id, e.monto, redondear(e.monto / (venta.tipo_cambio || 1)), metodo, id_externo ?? e.id_externo ?? `enlace-${e.id}`, venta.vendedor_id, e.id);

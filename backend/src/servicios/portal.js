@@ -2,6 +2,7 @@ import { obtenerDb, ajuste, ahoraSql } from '../db.js';
 import { ErrorHttp, noEncontrado } from '../middleware/errores.js';
 import { firmarCliente, esGestor } from '../middleware/auth.js';
 import { auditar } from './auditoria.js';
+import { alertarDuenoSinEsperar } from './mensajeria.js';
 import { obtenerVenta, crearVenta } from './ventas.js';
 import { crearEnlace, proveedoresDisponibles } from './pagos_en_linea.js';
 import { enviarCorreo, plantilla } from './correo.js';
@@ -103,6 +104,7 @@ export async function crearTicket(cliente, { asunto, texto, licencia_id }) {
   for (const para of new Set(destinos)) {
     await enviarCorreo({ para, asunto: `Nuevo ticket de ${cliente.nombre}: ${asunto}`, html: plantilla('Nuevo ticket de soporte', `<p><strong>${cliente.nombre}</strong> escribió:</p><blockquote>${texto.replace(/</g, '&lt;')}</blockquote>`, { boton: 'Responder', url: `${ajuste('url_publica', 'http://localhost:5173').replace(/\/$/, '')}/tickets/${id}` }) });
   }
+  alertarDuenoSinEsperar('ticket_nuevo', `${cliente.nombre}: ${asunto}`, { referencia: id, url: `/tickets/${id}` });
   return obtenerTicket(id, { clienteId: cliente.id });
 }
 

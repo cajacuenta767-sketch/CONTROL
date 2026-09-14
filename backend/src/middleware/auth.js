@@ -3,7 +3,7 @@ import { config } from '../config.js';
 import { obtenerDb } from '../db.js';
 import { ErrorHttp } from './errores.js';
 
-export const ROLES = ['superadmin', 'admin', 'vendedor', 'revendedor'];
+export const ROLES = ['superadmin', 'admin', 'vendedor', 'revendedor', 'soporte', 'contador'];
 
 const COLUMNAS_USUARIO = 'id, email, nombre, rol, comision_pct, tope_emisiones_dia, tope_demos_semana, activo, debe_cambiar_clave, totp_activo, codigo_ref, cupo_licencias, descuento_mayorista_pct, marca_nombre';
 
@@ -79,6 +79,12 @@ export const requerirRol = (...roles) => (req, res, next) => {
 export const esSuperadmin = (u) => u?.rol === 'superadmin';
 export const esGestor = (u) => u?.rol === 'superadmin' || u?.rol === 'admin';
 export const esRevendedor = (u) => u?.rol === 'revendedor';
+export const esSoporte = (u) => u?.rol === 'soporte';
+export const esContador = (u) => u?.rol === 'contador';
+/** Roles que ven toda la cartera (clientes, ventas, licencias, tickets) aunque no la gestionen. */
+export const veTodo = (u) => ['superadmin', 'admin', 'soporte', 'contador'].includes(u?.rol);
+/** Roles que pueden crear ventas y registrar cobros. */
+export const puedeVender = (u) => ['superadmin', 'admin', 'vendedor', 'revendedor'].includes(u?.rol);
 
 /* ---------- Cookies (sin dependencias) ---------- */
 

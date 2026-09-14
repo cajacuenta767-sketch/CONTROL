@@ -35,6 +35,8 @@ const SECCIONES: { titulo: string; descripcion?: string; campos: CampoDef[] }[] 
     { clave: 'paypal_cliente', etiqueta: 'PayPal · Client ID' },
     { clave: 'paypal_secreto', etiqueta: 'PayPal · Secret', tipo: 'password' },
     { clave: 'paypal_sandbox', etiqueta: 'PayPal · entorno', tipo: 'select', opciones: [['1', 'Sandbox (pruebas)'], ['0', 'Producción']] },
+    { clave: 'culqi_clave_publica', etiqueta: 'Culqi · llave pública (pk_live_… / pk_test_…)', ayuda: 'Culqi cobra en Perú con Yape, tarjetas y PagoEfectivo. Se activa sola cuando ambas llaves están puestas.' },
+    { clave: 'culqi_clave_secreta', etiqueta: 'Culqi · llave secreta (sk_live_… / sk_test_…)', ayuda: 'En el panel de Culqi registra el webhook {url}/api/v1/webhooks/culqi para los eventos order.status.changed y charge.creation.succeeded.', tipo: 'password' },
   ] },
   { titulo: 'Correo (SMTP)', descripcion: 'Necesario para recuperar contraseñas, avisos de vencimiento y recordatorios. Sin SMTP, los correos quedan registrados pero no se envían.', campos: [
     { clave: 'smtp_host', etiqueta: 'Servidor SMTP', ayuda: 'Ej.: smtp.gmail.com, smtp.zoho.com, smtp-relay.brevo.com' },
@@ -42,6 +44,20 @@ const SECCIONES: { titulo: string; descripcion?: string; campos: CampoDef[] }[] 
     { clave: 'smtp_usuario', etiqueta: 'Usuario' },
     { clave: 'smtp_clave', etiqueta: 'Contraseña o clave de aplicación', tipo: 'password' },
     { clave: 'smtp_desde', etiqueta: 'Remitente', ayuda: 'Ej.: "Mi Agencia" <no-responder@miagencia.com>' },
+  ] },
+  { titulo: 'WhatsApp y alertas', descripcion: 'WhatsApp Cloud API (Meta) para recordatorios automáticos al cliente; Telegram o WhatsApp para avisarte a ti. Prueba los canales desde el botón de abajo.', campos: [
+    { clave: 'whatsapp_token', etiqueta: 'WhatsApp · token permanente de la app de Meta', tipo: 'password' },
+    { clave: 'whatsapp_telefono_id', etiqueta: 'WhatsApp · ID del número (Phone number ID)' },
+    { clave: 'whatsapp_modo', etiqueta: 'WhatsApp · modo de envío', ayuda: 'Meta solo entrega texto libre si el cliente escribió en las últimas 24 h. Para iniciar conversaciones necesitas plantillas aprobadas.', tipo: 'select', opciones: [['texto', 'Texto libre (ventana de 24 h)'], ['plantilla', 'Plantillas aprobadas']] },
+    { clave: 'whatsapp_plantilla_cobro', etiqueta: 'Nombre de la plantilla de recordatorio de cobro', ayuda: 'Variables en orden: {{1}} cliente, {{2}} monto, {{3}} producto.' },
+    { clave: 'whatsapp_plantilla_vencimiento', etiqueta: 'Nombre de la plantilla de vencimiento', ayuda: 'Variables: {{1}} cliente, {{2}} producto, {{3}} fecha.' },
+    { clave: 'whatsapp_idioma', etiqueta: 'Código de idioma de las plantillas', ayuda: 'es, es_PE, es_MX…' },
+    { clave: 'recordatorio_cobro_dias', etiqueta: 'Días tras la venta para recordar el cobro pendiente', ayuda: '0 desactiva.', tipo: 'number' },
+    { clave: 'cuotas_gracia_dias', etiqueta: 'Días de gracia de una cuota vencida antes de pausar el sistema', tipo: 'number' },
+    { clave: 'telegram_token', etiqueta: 'Telegram · token del bot (de @BotFather)', tipo: 'password' },
+    { clave: 'telegram_chat_id', etiqueta: 'Telegram · chat ID donde recibes las alertas', ayuda: 'Escríbele al bot y consulta https://api.telegram.org/bot<token>/getUpdates para ver tu chat id.' },
+    { clave: 'telefono_dueno', etiqueta: 'Tu WhatsApp para alertas', ayuda: 'Requiere WhatsApp configurado arriba. Si no hay Telegram ni WhatsApp, las alertas llegan a tu correo.' },
+    { clave: 'alertas_dueno', etiqueta: 'Alertas activas', ayuda: 'Separadas por coma: pago_por_confirmar, activacion_rechazada, instalacion_clonada, cuota_vencida, ticket_nuevo, cierre_caja, planificador_detenido.', tipo: 'textarea' },
   ] },
   { titulo: 'Avisos automáticos', campos: [
     { clave: 'dias_aviso_vencimiento', etiqueta: 'Días antes del vencimiento para avisar', ayuda: 'Separados por coma. Ej.: 30,7,1' },
@@ -69,6 +85,8 @@ export function Ajustes() {
   const [respaldos, setRespaldos] = useState<any[]>([]);
   const [errores, setErrores] = useState<any[]>([]);
   const cargarCorreos = () => api.get<any>('/correos').then((r) => setCorreos(r.filas)).catch(() => null);
+  const [mensajes, setMensajes] = useState<any[]>([]);
+  const cargarMensajes = () => api.get<any[]>('/sistema/mensajes').then(setMensajes).catch(() => null);
   const cargarSistema = async () => {
     setTareas(await api.get<any>('/sistema/tareas').catch(() => null));
     setRespaldos(await api.get<any[]>('/sistema/respaldos').catch(() => []));
@@ -94,6 +112,7 @@ export function Ajustes() {
         {SECCIONES.map((x, i) => <button key={x.titulo} className={`chip ${i === seccion ? 'activo' : ''}`} onClick={() => setSeccion(i)}>{x.titulo}</button>)}
         <button className={`chip ${seccion === -1 ? 'activo' : ''}`} onClick={() => setSeccion(-1)}>Seguridad de mi cuenta</button>
         <button className={`chip ${seccion === -2 ? 'activo' : ''}`} onClick={() => setSeccion(-2)}>Correos enviados</button>
+        <button className={`chip ${seccion === -4 ? 'activo' : ''}`} onClick={() => { setSeccion(-4); cargarMensajes(); }}>WhatsApp y Telegram enviados</button>
         <button className={`chip ${seccion === -3 ? 'activo' : ''}`} onClick={() => { setSeccion(-3); cargarSistema(); }}>Sistema</button>
       </div>
 
@@ -150,7 +169,7 @@ export function Ajustes() {
       {seccion === -3 && (
         <div className="grid-2">
           <Tarjeta titulo="Tareas automáticas" acciones={<BotonAccion texto="Ejecutar ahora" className="btn secundario chico" exito="Tareas ejecutadas" onClick={async () => { await api.post('/sistema/tareas/ejecutar', {}); await cargarSistema(); }} />}>
-            <p className="suave pequeno" style={{ marginTop: 0 }}>Cada 10 minutos: estados de licencias, avisos de vencimiento, recordatorio de caja, renovaciones automáticas, respaldo diario y limpieza.</p>
+            <p className="suave pequeno" style={{ marginTop: 0 }}>Cada 10 minutos: estados de licencias, avisos de vencimiento, recordatorios de cobro, cuotas vencidas, recordatorio de caja, renovaciones automáticas, respaldo diario y limpieza.</p>
             {tareas ? (
               <dl className="definiciones">
                 <dt>Última corrida</dt><dd>{tareas.ultima_ejecucion ? fecha(tareas.ultima_ejecucion, true) : 'Todavía no (arranca al minuto de iniciar)'}</dd>
@@ -176,6 +195,18 @@ export function Ajustes() {
             ]} />
           </Tarjeta>
         </div>
+      )}
+      {seccion === -4 && (
+        <Tarjeta titulo="Mensajes por WhatsApp y Telegram" acciones={<div className="fila"><BotonAccion texto="Probar canales" className="btn secundario chico" exito="Prueba enviada; revisa el estado abajo" onClick={async () => { await api.post('/sistema/mensajes/probar'); await cargarMensajes(); }} /><button className="btn secundario chico" onClick={cargarMensajes}>Actualizar</button></div>}>
+          <p className="suave pequeno" style={{ marginTop: 0 }}>Todo mensaje queda registrado aunque el canal no esté configurado, así ves qué se habría enviado.</p>
+          <Tabla filas={mensajes} clave={(m) => m.id} vacio="Todavía no hay mensajes" columnas={[
+            { titulo: 'Fecha', celda: (m) => fecha(m.creado_en, true) },
+            { titulo: 'Canal', celda: (m) => m.canal },
+            { titulo: 'Para', celda: (m) => m.para },
+            { titulo: 'Texto', celda: (m) => <span className="pequeno" style={{ display: 'block', maxWidth: 420, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={m.texto}>{m.plantilla ? `[${m.plantilla}] ` : ''}{m.texto}</span> },
+            { titulo: 'Estado', celda: (m) => <><Estado valor={m.estado === 'enviado' ? 'confirmado' : m.estado === 'error' ? 'rechazado' : 'pendiente'} />{m.estado === 'sin_configurar' && <span className="suave pequeno"> canal sin configurar</span>}{m.error && <span className="suave pequeno"> · {m.error}</span>}</> },
+          ]} />
+        </Tarjeta>
       )}
       {seccion === -2 && (
         <Tarjeta titulo="Correos enviados" acciones={<button className="btn secundario chico" onClick={cargarCorreos}>Actualizar</button>}>
