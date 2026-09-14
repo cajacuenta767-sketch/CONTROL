@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { api, dinero, fecha, hoy, inicioMes } from '../api';
+import { api, copiar, dinero, fecha, hoy, inicioMes, plantilla } from '../api';
+import { useAvisar } from '../componentes/toast';
 import { useSesion } from '../sesion';
+import { useAjustes } from '../ajustes';
 import { Aviso, BotonWhatsApp, Cargando, Estado, Indicador, Tabla, Tarjeta, Vacio } from '../componentes/ui';
 
 interface Resumen {
@@ -12,10 +14,13 @@ interface Resumen {
   licencias: { por_estado: Record<string, number>; por_producto: { nombre: string; codigo: string; total: number; activas: number }[]; vencen_pronto: any[] };
   pagos_pendientes: any[]; ultimas_ventas: any[]; caja_hoy: string | null;
   equipo?: any[]; alertas?: Record<string, any>; ventas_por_dia?: { dia: string; total: number }[];
+  moneda_base?: string; enlace_venta?: string | null; meta?: { objetivo: number; bono_pct: number; vendido: number; cumplida: boolean } | null;
 }
 
 export function Panel() {
   const { usuario, esGestor } = useSesion();
+  const avisar = useAvisar();
+  const ajustes = useAjustes();
   const [r, setR] = useState<Resumen | null>(null);
   const nav = useNavigate();
   useEffect(() => { api.get<Resumen>('/reportes/resumen').then(setR); }, []);
@@ -52,6 +57,24 @@ export function Panel() {
             alertas.instalaciones_sin_latido_7d ? <span key="l">{alertas.instalaciones_sin_latido_7d} instalación(es) sin latido en 7 días</span> : null,
           ].filter(Boolean).map((x, i) => <span key={i}>{i > 0 && ' · '}{x}</span>)}
         </Aviso>
+      )}
+
+      {(r.meta || r.enlace_venta) && (
+        <div className="grid-2" style={{ marginBottom: 16 }}>
+          {r.meta && (
+            <Tarjeta titulo="Meta del mes" acciones={r.meta.cumplida ? <Estado valor="activa" /> : <span className="suave pequeno">bono +{r.meta.bono_pct}% al cumplirla</span>}>
+              <div className="fila" style={{ justifyContent: 'space-between' }}><strong>{dinero(r.meta.vendido, r.moneda_base)}</strong><span className="suave">de {dinero(r.meta.objetivo, r.moneda_base)}</span></div>
+              <div className={`barra-meta ${r.meta.cumplida ? '' : 'pendiente'}`}><div style={{ width: `${Math.min(100, (r.meta.vendido / Math.max(1, r.meta.objetivo)) * 100)}%` }} /></div>
+              <p className="suave pequeno" style={{ margin: 0 }}>{r.meta.cumplida ? `Meta cumplida: tus cobros de este mes llevan ${r.meta.bono_pct}% extra de comisión.` : `Te faltan ${dinero(Math.max(0, r.meta.objetivo - r.meta.vendido), r.moneda_base)} en ventas pagadas.`}</p>
+            </Tarjeta>
+          )}
+          {r.enlace_venta && (
+            <Tarjeta titulo="Tu enlace de venta" acciones={<button className="btn secundario chico" onClick={() => { copiar(r.enlace_venta!); avisar('Enlace copiado'); }}>Copiar</button>}>
+              <p className="suave pequeno" style={{ marginTop: 0 }}>Compártelo en WhatsApp o redes. Toda compra que entre por aquí queda atribuida a ti.</p>
+              <code className="clave" style={{ whiteSpace: 'normal', wordBreak: 'break-all' }}>{r.enlace_venta}</code>
+            </Tarjeta>
+          )}
+        </div>
       )}
 
       <div className="indicadores">
@@ -107,7 +130,7 @@ export function Panel() {
             { titulo: 'Cliente', celda: (l) => l.cliente_nombre },
             { titulo: 'Producto', celda: (l) => `${l.producto_nombre}${l.etiqueta ? ` · ${l.etiqueta}` : ''}` },
             { titulo: 'Vence', celda: (l) => fecha(l.vence_en), orden: (l) => l.vence_en },
-            { titulo: '', celda: (l) => <BotonWhatsApp telefono={l.cliente_telefono} texto={`Hola ${l.cliente_nombre}, te escribo de la agencia. Tu licencia de ${l.producto_nombre} vence el ${fecha(l.vence_en)}. ¿Coordinamos la renovación para que no pierdas acceso?`} /> },
+            { titulo: '', celda: (l) => <BotonWhatsApp telefono={l.cliente_telefono} texto={plantilla(ajustes.plantilla_wa_renovacion || 'Hola {cliente}, tu licencia de {producto} vence el {vence}. ¿Coordinamos la renovación?', { cliente: l.cliente_nombre, producto: l.producto_nombre, vence: fecha(l.vence_en), agencia: ajustes.nombre_agencia || 'la agencia', enlace: '' })} /> },
           ]} />
         </Tarjeta>
 

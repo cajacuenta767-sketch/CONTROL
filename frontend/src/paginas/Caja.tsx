@@ -44,17 +44,17 @@ export function Caja() {
         {dia && (
           <>
             <div className="indicadores">
-              <Indicador etiqueta="Cobrado" valor={dinero(dia.total_cobrado)} detalle={`${dia.cantidad_pagos} cobro(s)`} />
-              <Indicador etiqueta="A entregar en mano" valor={dinero(dia.a_entregar)} detalle="Efectivo" tono="alerta" />
-              <Indicador etiqueta="Comisión del día" valor={dinero(dia.comision_dia)} detalle="Se liquida aparte" />
+              <Indicador etiqueta={`Cobrado (equiv. ${dia.moneda_base})`} valor={dinero(dia.total_cobrado, dia.moneda_base)} detalle={`${dia.cantidad_pagos} cobro(s)`} />
+              <Indicador etiqueta="A entregar en mano" valor={Object.keys(dia.a_entregar_por_moneda || {}).length ? Object.entries(dia.a_entregar_por_moneda).map(([m, x]) => dinero(x as number, m)).join(' + ') : dinero(0, dia.moneda_base)} detalle="Efectivo, por moneda" tono="alerta" />
+              <Indicador etiqueta="Comisión del día" valor={dinero(dia.comision_dia, dia.moneda_base)} detalle="Se liquida aparte" />
               <Indicador etiqueta="Estado" valor={dia.cierre ? <Estado valor={dia.cierre.estado} /> : 'Abierta'} tono={dia.cierre ? 'ok' : 'neutro'} />
             </div>
             <div className="grid-2">
               <div>
-                <h3>Por método</h3>
+                <h3>Por moneda y método</h3>
                 <ul className="lista-simple">
-                  {Object.entries(dia.por_metodo).map(([m, v]) => <li key={m}><span>{ETIQUETA_METODO[m] || m}</span><strong>{dinero(v as number)}</strong></li>)}
-                  {Object.keys(dia.por_metodo).length === 0 && <li className="suave">Sin cobros ese día.</li>}
+                  {Object.entries(dia.por_moneda as Record<string, Record<string, number>>).flatMap(([mon, metodos]) => Object.entries(metodos).map(([m, v]) => <li key={`${mon}-${m}`}><span>{ETIQUETA_METODO[m] || m} <span className="suave pequeno">{mon}</span></span><strong>{dinero(v, mon)}</strong></li>))}
+                  {Object.keys(dia.por_moneda || {}).length === 0 && <li className="suave">Sin cobros ese día.</li>}
                 </ul>
               </div>
               <div>
@@ -62,7 +62,7 @@ export function Caja() {
                 <Tabla filas={dia.pagos} clave={(p: any) => p.id} vacio="Sin cobros" columnas={[
                   { titulo: 'Venta', celda: (p: any) => p.venta_numero },
                   { titulo: 'Cliente', celda: (p: any) => p.cliente_nombre },
-                  { titulo: 'Monto', celda: (p: any) => dinero(p.monto), alinear: 'derecha' },
+                  { titulo: 'Monto', celda: (p: any) => dinero(p.monto, p.moneda), alinear: 'derecha' },
                   { titulo: 'Método', celda: (p: any) => ETIQUETA_METODO[p.metodo] },
                   { titulo: 'Estado', celda: (p: any) => <Estado valor={p.estado} /> },
                 ]} />
@@ -91,12 +91,15 @@ export function Caja() {
           { titulo: 'Comisión', celda: (c) => dinero(c.comision_dia), alinear: 'derecha' },
           { titulo: 'Cobros', celda: (c) => c.cantidad_pagos, alinear: 'derecha' },
           { titulo: 'Estado', celda: (c) => <><Estado valor={c.estado} />{c.observacion && <span className="suave pequeno"> · {c.observacion}</span>}</>, orden: (c) => c.estado },
-          { titulo: '', celda: (c) => esSuper && c.estado !== 'aprobado' ? (
+          { titulo: '', celda: (c) => (
             <div className="fila">
+              <BotonAccion texto="PDF" className="btn secundario chico" onClick={() => api.abrir(`/caja/${c.id}/cierre.pdf`)} />
+              {esSuper && c.estado !== 'aprobado' && <>
               <BotonAccion texto="Aprobar" className="btn ok chico" exito="Cierre aprobado" onClick={() => revisar(c.id, 'aprobado')} />
               <AccionConMotivo titulo="Observar cierre" texto="Observar" className="btn secundario chico" etiquetaMotivo="Qué no cuadra" onConfirmar={(m) => revisar(c.id, 'observado', m)} exito="Cierre observado" />
+              </>}
             </div>
-          ) : null },
+          ) },
         ]} />
       </Tarjeta>
       <p className="suave pequeno no-imprimir">Las comisiones no se descuentan de la caja: se pagan por <Link to="/comisiones">liquidación</Link>.</p>

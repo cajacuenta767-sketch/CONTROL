@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, dinero } from '../api';
+import { api, dinero, hoy } from '../api';
 import { useSesion } from '../sesion';
 import { BotonAccion, Campo, Estado, Formulario, Modal, Tabla, Tarjeta } from '../componentes/ui';
 
@@ -11,6 +11,7 @@ export function Equipo() {
   const [nuevo, setNuevo] = useState(false);
   const [f, setF] = useState<any>(VACIO);
   const [editar, setEditar] = useState<any | null>(null);
+  const [meta, setMeta] = useState<any | null>(null);
   const cargar = () => api.get<any[]>('/usuarios').then(setUsuarios);
   useEffect(() => { cargar(); }, []);
 
@@ -48,9 +49,17 @@ export function Equipo() {
           { titulo: 'Vendido (pagado)', celda: (u) => dinero(u.total_vendido), alinear: 'derecha', orden: (u) => u.total_vendido },
           { titulo: 'Comisión pendiente', celda: (u) => dinero(u.comision_pendiente), alinear: 'derecha' },
           { titulo: 'Comisión pagada', celda: (u) => dinero(u.comision_liquidada), alinear: 'derecha' },
-          { titulo: '', celda: (u) => esSuper ? <div className="fila"><button className="btn secundario chico" onClick={() => setEditar({ ...u, clave: '' })}>Editar</button>{u.id !== usuario!.id && <BotonAccion texto={u.activo ? 'Desactivar' : 'Activar'} className="btn secundario chico" exito={u.activo ? 'Usuario desactivado' : 'Usuario activado'} onClick={async () => { await api.patch(`/usuarios/${u.id}`, { activo: !u.activo }); await cargar(); }} />}{u.bloqueado_hasta && <BotonAccion texto="Desbloquear" className="btn secundario chico" exito="Usuario desbloqueado" onClick={async () => { await api.patch(`/usuarios/${u.id}`, { desbloquear: true }); await cargar(); }} />}{u.totp_activo && u.id !== usuario!.id ? <BotonAccion texto="Quitar 2FA" className="btn secundario chico" exito="2FA quitado" onClick={async () => { await api.post(`/usuarios/${u.id}/quitar-2fa`); await cargar(); }} /> : null}</div> : null },
+          { titulo: 'Meta del mes', celda: (u) => u.rol === 'vendedor' ? (u.meta_mes ? <><div className="pequeno">{dinero(u.vendido_mes)} / {dinero(u.meta_mes)}</div><div className={`barra-meta ${u.vendido_mes >= u.meta_mes ? '' : 'pendiente'}`}><div style={{ width: `${Math.min(100, (u.vendido_mes / Math.max(1, u.meta_mes)) * 100)}%` }} /></div></> : <span className="suave pequeno">sin meta</span>) : '—' },
+          { titulo: '', celda: (u) => esSuper ? <div className="fila"><button className="btn secundario chico" onClick={() => setEditar({ ...u, clave: '' })}>Editar</button>{u.rol === 'vendedor' && <button className="btn secundario chico" onClick={() => setMeta({ usuario_id: u.id, nombre: u.nombre, mes: hoy().slice(0, 7), objetivo_monto: u.meta_mes ?? 1000, bono_pct: u.meta_bono_pct ?? 5 })}>Meta</button>}{u.id !== usuario!.id && <BotonAccion texto={u.activo ? 'Desactivar' : 'Activar'} className="btn secundario chico" exito={u.activo ? 'Usuario desactivado' : 'Usuario activado'} onClick={async () => { await api.patch(`/usuarios/${u.id}`, { activo: !u.activo }); await cargar(); }} />}{u.bloqueado_hasta && <BotonAccion texto="Desbloquear" className="btn secundario chico" exito="Usuario desbloqueado" onClick={async () => { await api.patch(`/usuarios/${u.id}`, { desbloquear: true }); await cargar(); }} />}{u.totp_activo && u.id !== usuario!.id ? <BotonAccion texto="Quitar 2FA" className="btn secundario chico" exito="2FA quitado" onClick={async () => { await api.post(`/usuarios/${u.id}/quitar-2fa`); await cargar(); }} /> : null}</div> : null },
         ]} />
       </Tarjeta>
+      <Modal titulo={`Meta mensual · ${meta?.nombre || ''}`} abierto={Boolean(meta)} cerrar={() => setMeta(null)}>
+        {meta && <Formulario onEnviar={async () => { await api.post('/usuarios/metas', { usuario_id: meta.usuario_id, mes: meta.mes, objetivo_monto: Number(meta.objetivo_monto), bono_pct: Number(meta.bono_pct) }); setMeta(null); await cargar(); }} cancelar={() => setMeta(null)} exito="Meta guardada">
+          <Campo etiqueta="Mes"><input type="month" value={meta.mes} onChange={(e) => setMeta({ ...meta, mes: e.target.value })} required /></Campo>
+          <Campo etiqueta="Objetivo en ventas pagadas (moneda base)"><input type="number" min={0} step="1" value={meta.objetivo_monto} onChange={(e) => setMeta({ ...meta, objetivo_monto: e.target.value })} required /></Campo>
+          <Campo etiqueta="Bono al cumplirla (puntos de comisión extra)" ayuda="Se suma a su comisión en los cobros confirmados después de alcanzar la meta."><input type="number" min={0} max={50} step="0.5" value={meta.bono_pct} onChange={(e) => setMeta({ ...meta, bono_pct: e.target.value })} /></Campo>
+        </Formulario>}
+      </Modal>
       <Modal titulo="Nuevo usuario" abierto={nuevo} cerrar={() => setNuevo(false)}>
         <Formulario onEnviar={async () => { await api.post('/usuarios', { ...f, telefono: f.telefono || undefined }); setNuevo(false); await cargar(); }} cancelar={() => setNuevo(false)} exito="Usuario creado">{campos(f, setF, true)}</Formulario>
       </Modal>

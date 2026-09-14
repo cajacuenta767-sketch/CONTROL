@@ -1,4 +1,4 @@
-import { obtenerDb, hoyLocal, ahoraSql, modZona } from '../db.js';
+import { obtenerDb, hoyLocal, ahoraSql, modZona, ajuste } from '../db.js';
 import { esGestor } from '../middleware/auth.js';
 import { actualizarEstadosPorFecha } from './licencias.js';
 
@@ -17,10 +17,10 @@ export function resumen(usuario) {
   const fc = propio ? 'AND co.vendedor_id = ?' : '';
   const p = propio ? [usuario.id] : [];
 
-  const ventasHoy = db.prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(total),0) AS total FROM ventas v WHERE date(v.creado_en, ?) = ? AND v.estado != 'anulada' ${fv}`).get(z, hoy, ...p);
-  const ventasMes = db.prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(total),0) AS total FROM ventas v WHERE strftime('%Y-%m', v.creado_en, ?) = ? AND v.estado != 'anulada' ${fv}`).get(z, mes, ...p);
-  const cobradoHoy = db.prepare(`SELECT COALESCE(SUM(pg.monto),0) AS total FROM pagos pg JOIN ventas v ON v.id = pg.venta_id WHERE pg.estado = 'confirmado' AND date(pg.confirmado_en, ?) = ? ${fv}`).get(z, hoy, ...p).total;
-  const cobradoMes = db.prepare(`SELECT COALESCE(SUM(pg.monto),0) AS total FROM pagos pg JOIN ventas v ON v.id = pg.venta_id WHERE pg.estado = 'confirmado' AND strftime('%Y-%m', pg.confirmado_en, ?) = ? ${fv}`).get(z, mes, ...p).total;
+  const ventasHoy = db.prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(total_base),0) AS total FROM ventas v WHERE date(v.creado_en, ?) = ? AND v.estado != 'anulada' ${fv}`).get(z, hoy, ...p);
+  const ventasMes = db.prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(total_base),0) AS total FROM ventas v WHERE strftime('%Y-%m', v.creado_en, ?) = ? AND v.estado != 'anulada' ${fv}`).get(z, mes, ...p);
+  const cobradoHoy = db.prepare(`SELECT COALESCE(SUM(COALESCE(pg.monto_base, pg.monto)),0) AS total FROM pagos pg JOIN ventas v ON v.id = pg.venta_id WHERE pg.estado = 'confirmado' AND date(pg.confirmado_en, ?) = ? ${fv}`).get(z, hoy, ...p).total;
+  const cobradoMes = db.prepare(`SELECT COALESCE(SUM(COALESCE(pg.monto_base, pg.monto)),0) AS total FROM pagos pg JOIN ventas v ON v.id = pg.venta_id WHERE pg.estado = 'confirmado' AND strftime('%Y-%m', pg.confirmado_en, ?) = ? ${fv}`).get(z, mes, ...p).total;
   const comisiones = db.prepare(`SELECT
       COALESCE(SUM(CASE WHEN co.estado = 'devengada' THEN co.monto END),0) AS pendiente,
       COALESCE(SUM(CASE WHEN co.estado = 'liquidada' THEN co.monto END),0) AS liquidada,
@@ -40,12 +40,12 @@ export function resumen(usuario) {
       WHERE l.estado IN ('activa','mora') AND l.vence_en IS NOT NULL AND l.vence_en <= ? ${fl} ORDER BY l.vence_en LIMIT 30`)
     .all(ahoraSql(30), ...p);
   const pagosPendientes = db
-    .prepare(`SELECT pg.id, pg.monto, pg.metodo, pg.creado_en, v.numero AS venta_numero, v.id AS venta_id, c.nombre AS cliente_nombre, u.nombre AS registrado_por_nombre
+    .prepare(`SELECT pg.id, pg.monto, v.moneda, pg.metodo, pg.creado_en, v.numero AS venta_numero, v.id AS venta_id, c.nombre AS cliente_nombre, u.nombre AS registrado_por_nombre
       FROM pagos pg JOIN ventas v ON v.id = pg.venta_id JOIN clientes c ON c.id = v.cliente_id JOIN usuarios u ON u.id = pg.registrado_por
       WHERE pg.estado = 'pendiente' ${fv} ORDER BY pg.id DESC LIMIT 30`)
     .all(...p);
   const ultimasVentas = db
-    .prepare(`SELECT v.id, v.numero, v.total, v.estado, v.creado_en, c.nombre AS cliente_nombre, pr.nombre AS producto_nombre, pl.tipo AS plan_tipo, u.nombre AS vendedor_nombre
+    .prepare(`SELECT v.id, v.numero, v.total, v.moneda, v.total_base, v.estado, v.creado_en, c.nombre AS cliente_nombre, pr.nombre AS producto_nombre, pl.tipo AS plan_tipo, u.nombre AS vendedor_nombre
       FROM ventas v JOIN clientes c ON c.id = v.cliente_id JOIN productos pr ON pr.id = v.producto_id JOIN planes pl ON pl.id = v.plan_id JOIN usuarios u ON u.id = v.vendedor_id
       WHERE 1=1 ${fv} ORDER BY v.id DESC LIMIT 10`)
     .all(...p);
@@ -59,13 +59,21 @@ export function resumen(usuario) {
     pagos_pendientes: pagosPendientes,
     ultimas_ventas: ultimasVentas,
     caja_hoy: db.prepare('SELECT estado FROM cierres_caja WHERE vendedor_id = ? AND fecha = ?').get(usuario.id, hoy)?.estado ?? null,
+    moneda_base: ajuste('moneda_base', 'USD'),
+    enlace_venta: usuario.codigo_ref ? `${ajuste('url_publica', 'http://localhost:5173').replace(/\/$/, '')}/comprar?ref=${usuario.codigo_ref}` : null,
+    meta: (() => {
+      const m = db.prepare('SELECT objetivo_monto, bono_pct FROM metas WHERE usuario_id = ? AND mes = ?').get(usuario.id, mes);
+      if (!m) return null;
+      const vendido = db.prepare("SELECT COALESCE(SUM(total_base),0) AS s FROM ventas WHERE vendedor_id = ? AND estado = 'pagada' AND strftime('%Y-%m', pagada_en, ?) = ?").get(usuario.id, z, mes).s;
+      return { objetivo: m.objetivo_monto, bono_pct: m.bono_pct, vendido: redondear(vendido), cumplida: vendido >= m.objetivo_monto };
+    })(),
   };
 
   if (!propio) {
     salida.equipo = db
       .prepare(`SELECT u.id, u.nombre, u.rol, u.tope_emisiones_dia,
           (SELECT COUNT(*) FROM ventas v WHERE v.vendedor_id = u.id AND strftime('%Y-%m', v.creado_en, ?) = ? AND v.estado != 'anulada') AS ventas_mes,
-          (SELECT COALESCE(SUM(v.total),0) FROM ventas v WHERE v.vendedor_id = u.id AND strftime('%Y-%m', v.creado_en, ?) = ? AND v.estado = 'pagada') AS vendido_mes,
+          (SELECT COALESCE(SUM(v.total_base),0) FROM ventas v WHERE v.vendedor_id = u.id AND strftime('%Y-%m', v.creado_en, ?) = ? AND v.estado = 'pagada') AS vendido_mes,
           (SELECT COALESCE(SUM(co.monto),0) FROM comisiones co WHERE co.vendedor_id = u.id AND co.estado = 'devengada') AS comision_pendiente,
           (SELECT COUNT(*) FROM licencias l WHERE l.emitida_por = u.id AND date(l.creado_en, ?) = ?) AS emitidas_hoy,
           (SELECT COUNT(*) FROM licencias l JOIN planes pl ON pl.id = l.plan_id WHERE l.emitida_por = u.id AND pl.tipo = 'demo' AND l.creado_en >= datetime('now','-7 days')) AS demos_semana
@@ -86,7 +94,7 @@ export function resumen(usuario) {
         .get().n,
     };
     salida.ventas_por_dia = db
-      .prepare(`SELECT date(pg.confirmado_en, ?) AS dia, COALESCE(SUM(pg.monto),0) AS total FROM pagos pg
+      .prepare(`SELECT date(pg.confirmado_en, ?) AS dia, COALESCE(SUM(COALESCE(pg.monto_base, pg.monto)),0) AS total FROM pagos pg
         WHERE pg.estado = 'confirmado' AND pg.confirmado_en >= datetime('now','-30 days') GROUP BY dia ORDER BY dia`)
       .all(z);
   }

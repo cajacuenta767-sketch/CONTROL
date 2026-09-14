@@ -19,14 +19,14 @@ export function Ventas() {
   const esRango = (d: string, h: string) => filtros.desde === d && (filtros.hasta || '') === h;
 
   const lista = ventas || [];
-  const total = lista.filter((v) => v.estado !== 'anulada').reduce((s, v) => s + v.total, 0);
-  const pagado = lista.reduce((s, v) => s + v.pagado, 0);
+  const total = lista.filter((v) => v.estado !== 'anulada').reduce((s, v) => s + (v.total_base ?? v.total), 0);
+  const pagado = lista.reduce((s, v) => s + (v.pagado / (v.tipo_cambio || 1)), 0);
   const hayFiltros = Object.keys(filtros).length > 0;
 
   return (
     <>
       <header>
-        <div><h1>Ventas</h1><p>{lista.length} venta(s) · total {dinero(total)} · cobrado {dinero(pagado)}</p></div>
+        <div><h1>Ventas</h1><p>{lista.length} venta(s) · total {dinero(total)} · cobrado {dinero(pagado)} <span className="suave pequeno">(equivalente en moneda base)</span></p></div>
         <div className="fila">
           <ExportarCsv nombre="ventas" filas={lista.map((v) => ({ numero: v.numero, fecha: v.creado_en, cliente: v.cliente_nombre, empresa: v.cliente_empresa, producto: v.producto_nombre, plan: v.plan_tipo, cantidad: v.cantidad, total: v.total, pagado: v.pagado, estado: v.estado, vendedor: v.vendedor_nombre }))} />
           <Link to="/ventas/nueva" className="btn">+ Nueva venta</Link>

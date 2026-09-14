@@ -5,35 +5,45 @@ import { auditar } from './auditoria.js';
 
 const redondear = (n) => Math.round(n * 100) / 100;
 
-/** Resumen de lo cobrado por un vendedor en una fecha (sin guardar). */
+/**
+ * Resumen de lo cobrado por un vendedor en una fecha (sin guardar).
+ * Los totales se expresan en la moneda base; `por_moneda` desglosa cada moneda real.
+ */
 export function resumenDia(vendedorId, fecha = hoyLocal()) {
   const db = obtenerDb();
   const z = modZona();
+  const base = ajuste('moneda_base', 'USD');
   const pagos = db
     .prepare(
-      `SELECT p.id, p.monto, p.metodo, p.estado, p.referencia, p.creado_en, v.numero AS venta_numero, c.nombre AS cliente_nombre
+      `SELECT p.id, p.monto, COALESCE(p.monto_base, p.monto) AS monto_base, p.metodo, p.estado, p.referencia, p.creado_en, v.numero AS venta_numero, v.moneda, c.nombre AS cliente_nombre
        FROM pagos p JOIN ventas v ON v.id = p.venta_id JOIN clientes c ON c.id = v.cliente_id
        WHERE p.registrado_por = ? AND date(p.creado_en, ?) = ? AND p.estado != 'rechazado' ORDER BY p.id`
     )
     .all(vendedorId, z, fecha);
   const porMetodo = {};
-  let total = 0;
+  const porMoneda = {};
+  let totalBase = 0;
   for (const p of pagos) {
-    porMetodo[p.metodo] = redondear((porMetodo[p.metodo] || 0) + p.monto);
-    total += p.monto;
+    porMetodo[p.metodo] = redondear((porMetodo[p.metodo] || 0) + p.monto_base);
+    porMoneda[p.moneda] = porMoneda[p.moneda] || {};
+    porMoneda[p.moneda][p.metodo] = redondear((porMoneda[p.moneda][p.metodo] || 0) + p.monto);
+    totalBase += p.monto_base;
   }
   const enMano = ajuste('metodos_en_mano', 'efectivo').split(',').map((s) => s.trim());
   const aEntregar = enMano.reduce((s, m) => s + (porMetodo[m] || 0), 0);
+  const aEntregarPorMoneda = Object.fromEntries(Object.entries(porMoneda).map(([mon, metodos]) => [mon, redondear(enMano.reduce((s, m) => s + (metodos[m] || 0), 0))]).filter(([, v]) => v > 0));
   const comision = db
     .prepare("SELECT COALESCE(SUM(monto),0) AS s FROM comisiones WHERE vendedor_id = ? AND date(creado_en, ?) = ? AND estado != 'revertida'")
     .get(vendedorId, z, fecha).s;
   const cierre = db.prepare('SELECT * FROM cierres_caja WHERE vendedor_id = ? AND fecha = ?').get(vendedorId, fecha);
   return {
-    fecha, vendedor_id: vendedorId, pagos, por_metodo: porMetodo,
-    total_cobrado: redondear(total), a_entregar: redondear(aEntregar), comision_dia: redondear(comision),
-    cantidad_pagos: pagos.length, cierre: cierre ? { ...cierre, por_metodo: JSON.parse(cierre.por_metodo) } : null,
+    fecha, vendedor_id: vendedorId, pagos, moneda_base: base, por_metodo: porMetodo, por_moneda: porMoneda,
+    total_cobrado: redondear(totalBase), a_entregar: redondear(aEntregar), a_entregar_por_moneda: aEntregarPorMoneda, comision_dia: redondear(comision),
+    cantidad_pagos: pagos.length, cierre: cierre ? parsearCierre(cierre) : null,
   };
 }
+
+const parsearCierre = (c) => ({ ...c, por_metodo: JSON.parse(c.por_metodo || '{}'), por_moneda: JSON.parse(c.por_moneda || '{}') });
 
 export function cerrarCaja(actor, { fecha = hoyLocal(), observacion } = {}) {
   if (fecha > hoyLocal()) throw new ErrorHttp(422, 'No se puede cerrar una fecha futura');
@@ -41,10 +51,10 @@ export function cerrarCaja(actor, { fecha = hoyLocal(), observacion } = {}) {
   if (r.cierre) throw new ErrorHttp(409, 'La caja de ese día ya está cerrada');
   const res = obtenerDb()
     .prepare(
-      `INSERT INTO cierres_caja (vendedor_id, fecha, total_cobrado, por_metodo, comision_dia, a_entregar, cantidad_pagos, observacion)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO cierres_caja (vendedor_id, fecha, total_cobrado, total_base, por_metodo, por_moneda, comision_dia, a_entregar, cantidad_pagos, observacion)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
-    .run(actor.id, fecha, r.total_cobrado, JSON.stringify(r.por_metodo), r.comision_dia, r.a_entregar, r.cantidad_pagos, observacion ?? null);
+    .run(actor.id, fecha, r.total_cobrado, r.total_cobrado, JSON.stringify(r.por_metodo), JSON.stringify(r.por_moneda), r.comision_dia, r.a_entregar, r.cantidad_pagos, observacion ?? null);
   const id = Number(res.lastInsertRowid);
   auditar({ usuarioId: actor.id, accion: 'caja.cerrar', entidad: 'cierre_caja', entidadId: id, detalle: { fecha, total: r.total_cobrado, a_entregar: r.a_entregar } });
   return obtenerCierre(id);
@@ -56,7 +66,7 @@ export function obtenerCierre(id, usuario) {
     .get(id);
   if (!c) throw noEncontrado('Cierre no encontrado');
   if (usuario && !esGestor(usuario) && c.vendedor_id !== usuario.id) throw prohibido();
-  return { ...c, por_metodo: JSON.parse(c.por_metodo) };
+  return parsearCierre(c);
 }
 
 export function listarCierres(usuario, { estado, vendedor_id, desde, hasta } = {}) {
@@ -71,7 +81,7 @@ export function listarCierres(usuario, { estado, vendedor_id, desde, hasta } = {
   return obtenerDb()
     .prepare(`SELECT c.*, u.nombre AS vendedor_nombre FROM cierres_caja c JOIN usuarios u ON u.id = c.vendedor_id ${where} ORDER BY c.fecha DESC, c.id DESC LIMIT 500`)
     .all(...params)
-    .map((c) => ({ ...c, por_metodo: JSON.parse(c.por_metodo) }));
+    .map(parsearCierre);
 }
 
 export function revisarCierre(id, { estado, observacion }, actor) {

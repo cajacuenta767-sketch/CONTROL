@@ -7,6 +7,9 @@ import {
   resumenDia, cerrarCaja, listarCierres, obtenerCierre, revisarCierre,
   listarComisiones, crearLiquidacion, listarLiquidaciones, obtenerLiquidacion, pagarLiquidacion,
 } from '../servicios/caja.js';
+import { cierreCajaPdf, reciboLiquidacion } from '../servicios/documentos.js';
+
+const pdf = (res, nombre, buffer) => { res.setHeader('Content-Type', 'application/pdf'); res.setHeader('Content-Disposition', `inline; filename="${nombre}"`); res.send(buffer); };
 
 const fecha = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'formato YYYY-MM-DD');
 
@@ -22,6 +25,7 @@ rutasCaja.get('/dia', asincrono((req, res) => {
 rutasCaja.post('/cerrar', validar(z.object({ fecha: fecha.optional(), observacion: z.string().max(500).optional() })), asincrono((req, res) => res.status(201).json(cerrarCaja(req.usuario, req.datos))));
 rutasCaja.get('/', asincrono((req, res) => res.json(listarCierres(req.usuario, req.query))));
 rutasCaja.get('/:id', asincrono((req, res) => res.json(obtenerCierre(Number(req.params.id), req.usuario))));
+rutasCaja.get('/:id/cierre.pdf', asincrono(async (req, res) => { obtenerCierre(Number(req.params.id), req.usuario); pdf(res, `cierre-caja-${req.params.id}.pdf`, await cierreCajaPdf(Number(req.params.id))); }));
 rutasCaja.post(
   '/:id/revisar',
   requerirRol('superadmin'),
@@ -37,6 +41,7 @@ export const rutasLiquidaciones = Router();
 rutasLiquidaciones.use(requerirAuth);
 rutasLiquidaciones.get('/', asincrono((req, res) => res.json(listarLiquidaciones(req.usuario, req.query))));
 rutasLiquidaciones.get('/:id', asincrono((req, res) => res.json(obtenerLiquidacion(Number(req.params.id), req.usuario))));
+rutasLiquidaciones.get('/:id/recibo.pdf', asincrono(async (req, res) => { obtenerLiquidacion(Number(req.params.id), req.usuario); pdf(res, `liquidacion-${req.params.id}.pdf`, await reciboLiquidacion(Number(req.params.id))); }));
 rutasLiquidaciones.post(
   '/',
   requerirRol('superadmin'),

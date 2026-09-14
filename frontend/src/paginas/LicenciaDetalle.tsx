@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { api, fecha } from '../api';
+import { api, fecha, plantilla } from '../api';
+import { useAjustes } from '../ajustes';
 import { useSesion } from '../sesion';
 import { AccionConMotivo, Aviso, BotonAccion, BotonWhatsApp, Campo, Cargando, Clave, Estado, Tabla, Tarjeta } from '../componentes/ui';
 
 export function LicenciaDetalle() {
   const { id } = useParams();
   const { esSuper } = useSesion();
+  const ajustes = useAjustes();
   const [l, setL] = useState<any | null>(null);
   const [etiqueta, setEtiqueta] = useState('');
   const [max, setMax] = useState(1);
@@ -19,7 +21,7 @@ export function LicenciaDetalle() {
 
   const accion = (ruta: string, extra: object = {}) => async (motivo: string) => { await api.post(`/licencias/${id}/${ruta}`, { motivo, ...extra }); await cargar(); };
   const renovable = ['activa', 'mora', 'suspendida', 'vencida'].includes(l.estado) && l.plan_tipo !== 'demo';
-  const mensajeClave = `Hola ${l.cliente_nombre}, aquí tienes tu licencia de ${l.producto_nombre}${l.etiqueta ? ` (${l.etiqueta})` : ''}:\n\n${l.clave}\n\nActívala en el sistema, en Ajustes › Licencia. Se vincula al primer equipo donde la actives. Cualquier duda me escribes.`;
+  const mensajeClave = plantilla(ajustes.plantilla_wa_claves || 'Hola {cliente}, {claves_intro}:\n\n{claves}', { cliente: l.cliente_nombre, producto: l.producto_nombre, agencia: ajustes.nombre_agencia || '', claves_intro: 'Esta es tu clave de licencia', claves: `${l.etiqueta ? `${l.etiqueta}: ` : ''}${l.clave}` });
 
   return (
     <>

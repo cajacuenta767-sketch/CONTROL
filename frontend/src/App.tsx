@@ -4,6 +4,7 @@ import { useSesion } from './sesion';
 import { Cargando, LimiteErrores } from './componentes/ui';
 import { Login } from './paginas/Login';
 import { Recuperar, Restablecer, CambiarClave } from './paginas/Recuperar';
+import { Comprar, PagarDemo, PagoResultado, PedidoPublico } from './paginas/Publico';
 import { Panel } from './paginas/Panel';
 import { Ventas } from './paginas/Ventas';
 import { VentaNueva } from './paginas/VentaNueva';
@@ -34,7 +35,7 @@ const I = {
 
 const TITULOS: [string, string][] = [
   ['/ventas/nueva', 'Nueva venta'], ['/ventas', 'Ventas'], ['/licencias', 'Licencias'], ['/clientes', 'Clientes'], ['/caja', 'Caja'],
-  ['/comisiones', 'Comisiones'], ['/catalogo', 'Catálogo'], ['/equipo', 'Equipo'], ['/auditoria', 'Auditoría'], ['/ajustes', 'Ajustes'], ['/login', 'Entrar'],
+  ['/comisiones', 'Comisiones'], ['/catalogo', 'Catálogo'], ['/equipo', 'Equipo'], ['/auditoria', 'Auditoría'], ['/ajustes', 'Ajustes'], ['/login', 'Entrar'], ['/comprar', 'Comprar'], ['/pagar', 'Pagar'], ['/pedido', 'Mi pedido'],
 ];
 
 export function App() {
@@ -47,6 +48,18 @@ export function App() {
     document.title = `${t} · CONTROL`;
   }, [ubicacion.pathname]);
 
+  const publica = ['/comprar', '/pagar/', '/pago-exitoso', '/pago-cancelado', '/pedido/'].some((p) => ubicacion.pathname.startsWith(p));
+  if (publica) {
+    return (
+      <Routes>
+        <Route path="/comprar" element={<Comprar />} />
+        <Route path="/pagar/demo/:id" element={<PagarDemo />} />
+        <Route path="/pago-exitoso" element={<PagoResultado exito />} />
+        <Route path="/pago-cancelado" element={<PagoResultado exito={false} />} />
+        <Route path="/pedido/:numero" element={<PedidoPublico />} />
+      </Routes>
+    );
+  }
   if (cargando) return <div className="login-form" style={{ minHeight: '100vh' }}><Cargando /></div>;
   if (!usuario) {
     return (
@@ -66,7 +79,7 @@ export function App() {
     { titulo: 'Dinero', enlaces: [{ a: '/caja', t: 'Caja', i: 'caja' }, { a: '/comisiones', t: 'Comisiones', i: 'comisiones' }] },
     ...(esGestor ? [{ titulo: 'Administración', enlaces: [{ a: '/catalogo', t: 'Catálogo', i: 'catalogo' as const }, { a: '/equipo', t: 'Equipo', i: 'equipo' as const }, { a: '/auditoria', t: 'Auditoría', i: 'auditoria' as const }, ...(esSuper ? [{ a: '/ajustes', t: 'Ajustes', i: 'ajustes' as const }] : [])] }] : []),
   ];
-  const rolTexto = usuario.rol === 'superadmin' ? 'Superadministrador' : usuario.rol === 'admin' ? 'Administrador' : `Vendedor · ${usuario.comision_pct}% comisión`;
+  const rolTexto = usuario.rol === 'superadmin' ? 'Superadministrador' : usuario.rol === 'admin' ? 'Administrador' : usuario.rol === 'revendedor' ? `Revendedor · cupo ${usuario.cupo_licencias ?? 0}` : `Vendedor · ${usuario.comision_pct}% comisión`;
 
   return (
     <div className="app">

@@ -51,7 +51,7 @@ export function Comisiones() {
             { titulo: 'Periodo', celda: (l) => `${fecha(l.desde)} – ${fecha(l.hasta)}` },
             { titulo: 'Total', celda: (l) => dinero(l.total), alinear: 'derecha' },
             { titulo: 'Estado', celda: (l) => <><Estado valor={l.estado === 'pagada' ? 'pagada' : 'pendiente'} />{l.pagada_en && <span className="suave pequeno"> {fecha(l.pagada_en)}</span>}</> },
-            { titulo: '', celda: (l) => esSuper && l.estado === 'pendiente' ? <BotonAccion texto="Marcar pagada" className="btn ok chico" exito="Liquidación pagada" onClick={async () => { await api.post(`/liquidaciones/${l.id}/pagar`); await cargar(); }} /> : null },
+            { titulo: '', celda: (l) => <div className="fila"><BotonAccion texto="PDF" className="btn secundario chico" onClick={() => api.abrir(`/liquidaciones/${l.id}/recibo.pdf`)} />{esSuper && l.estado === 'pendiente' && <BotonAccion texto="Marcar pagada" className="btn ok chico" exito="Liquidación pagada" onClick={async () => { await api.post(`/liquidaciones/${l.id}/pagar`); await cargar(); }} />}</div> },
           ]} />
         </Tarjeta>
         <Tarjeta titulo="Detalle de comisiones">
@@ -86,7 +86,7 @@ export function Comisiones() {
               { titulo: '%', celda: (c: any) => `${c.pct}%`, alinear: 'derecha' },
               { titulo: 'Monto', celda: (c: any) => dinero(c.monto), alinear: 'derecha' },
             ]} />
-            <div className="acciones" style={{ marginTop: 12, textAlign: 'right' }}><button className="btn secundario" onClick={() => window.print()}>Imprimir recibo</button></div>
+            <div className="acciones" style={{ marginTop: 12, textAlign: 'right' }}><BotonAccion texto="Recibo PDF" className="btn secundario" onClick={() => api.abrir(`/liquidaciones/${detalle.id}/recibo.pdf`)} /></div>
           </>
         )}
       </Modal>

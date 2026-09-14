@@ -2,16 +2,18 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api, dinero, ETIQUETA_ESTADO } from '../api';
 import { useSesion } from '../sesion';
+import { useAjustes } from '../ajustes';
 import { Aviso, Campo, Formulario, Modal, Tarjeta } from '../componentes/ui';
 
 export function VentaNueva() {
   const { esGestor, esSuper, usuario } = useSesion();
+  const esRevendedor = usuario!.rol === 'revendedor';
   const nav = useNavigate();
   const [params] = useSearchParams();
   const [productos, setProductos] = useState<any[]>([]);
   const [clientes, setClientes] = useState<any[]>([]);
   const [equipo, setEquipo] = useState<any[]>([]);
-  const [ajustes, setAjustes] = useState<Record<string, string>>({});
+  const ajustes = useAjustes();
   const [clienteId, setClienteId] = useState(params.get('cliente_id') || '');
   const [productoId, setProductoId] = useState('');
   const [planId, setPlanId] = useState('');
@@ -22,12 +24,11 @@ export function VentaNueva() {
   const [notas, setNotas] = useState('');
   const [renueva, setRenueva] = useState(params.get('renueva') || '');
   const [nuevoCliente, setNuevoCliente] = useState(false);
-  const [nc, setNc] = useState({ nombre: '', empresa: '', telefono: '', email: '', pais: '' });
+  const [nc, setNc] = useState({ nombre: '', empresa: '', telefono: '', email: '', pais: '', moneda: '' });
 
   useEffect(() => {
     api.get<any[]>('/productos').then(setProductos);
     api.get<any[]>('/clientes').then(setClientes);
-    api.get<Record<string, string>>('/ajustes').then(setAjustes);
     if (esGestor) api.get<any[]>('/usuarios').then((u) => setEquipo(u.filter((x) => x.activo)));
   }, [esGestor]);
 
@@ -36,11 +37,17 @@ export function VentaNueva() {
   const cliente = clientes.find((c) => String(c.id) === clienteId);
   const topeDesc = Number(ajustes.tope_descuento_pct || 10);
   const esRenovacion = Boolean(renueva);
-  const total = useMemo(() => (plan ? (plan.tipo === 'demo' ? 0 : plan.precio) * (esRenovacion ? 1 : cantidad) * (1 - descuento / 100) : 0), [plan, cantidad, descuento, esRenovacion]);
-  const pct = plan?.comision_pct ?? usuario!.comision_pct;
+  const descuentoEfectivo = esRevendedor ? (usuario!.descuento_mayorista_pct ?? 30) : descuento;
+  const totalBase = useMemo(() => (plan ? (plan.tipo === 'demo' ? 0 : plan.precio) * (esRenovacion ? 1 : cantidad) * (1 - descuentoEfectivo / 100) : 0), [plan, cantidad, descuentoEfectivo, esRenovacion]);
+  const monedaBase = ajustes.moneda_base || 'USD';
+  const monedaCliente = cliente?.moneda || monedaBase;
+  let tipoCambio = 1;
+  try { tipoCambio = monedaCliente === monedaBase ? 1 : Number(JSON.parse(ajustes.tipos_cambio || '{}')[monedaCliente]) || 0; } catch { tipoCambio = 0; }
+  const total = totalBase * tipoCambio;
+  const pct = esRevendedor ? 0 : plan?.comision_pct ?? usuario!.comision_pct;
 
   const crearCliente = async () => {
-    const c = await api.post<any>('/clientes', { ...nc, email: nc.email || undefined });
+    const c = await api.post<any>('/clientes', { ...nc, email: nc.email || undefined, moneda: nc.moneda || undefined });
     setClientes((l) => [c, ...l]); setClienteId(String(c.id)); setNuevoCliente(false);
   };
 
@@ -95,7 +102,8 @@ export function VentaNueva() {
                 ))}
               </Campo>
             )}
-            {plan && plan.tipo !== 'demo' && (
+            {esRevendedor && plan && plan.tipo !== 'demo' && <Aviso tipo="info">Precio mayorista: {usuario!.descuento_mayorista_pct ?? 30}% de descuento sobre lista. {(usuario!.cupo_licencias ?? 0) >= cantidad ? `Se descontará de tu cupo (${usuario!.cupo_licencias}) y la venta se confirma al instante.` : 'Sin cupo suficiente: la venta queda pendiente hasta que la agencia confirme tu pago.'}</Aviso>}
+            {plan && plan.tipo !== 'demo' && !esRevendedor && (
               <Campo etiqueta={`Descuento % (máximo ${esSuper ? 'sin límite' : `${topeDesc}%`})`}>
                 <input type="number" min={0} max={esSuper ? 100 : topeDesc} step={0.5} value={descuento} onChange={(e) => setDescuento(Number(e.target.value))} />
               </Campo>
@@ -119,9 +127,10 @@ export function VentaNueva() {
             <dt>Plan</dt><dd>{plan ? `${plan.nombre} (${ETIQUETA_ESTADO[plan.tipo]})` : '—'}</dd>
             <dt>Precio unitario</dt><dd>{plan ? dinero(plan.tipo === 'demo' ? 0 : plan.precio) : '—'}</dd>
             <dt>Licencias</dt><dd>{esRenovacion ? 'Renueva 1 existente' : cantidad}</dd>
-            <dt>Descuento</dt><dd>{descuento}%</dd>
-            <dt><strong>Total</strong></dt><dd><strong>{dinero(total)}</strong></dd>
-            <dt>Comisión ({pct}%)</dt><dd>{dinero((total * pct) / 100)} <span className="suave pequeno">se devenga al confirmar el cobro</span></dd>
+            <dt>Descuento</dt><dd>{descuentoEfectivo}%{esRevendedor && <span className="suave pequeno"> (mayorista)</span>}</dd>
+            <dt>Moneda</dt><dd>{monedaCliente}{monedaCliente !== monedaBase && (tipoCambio ? <span className="suave pequeno"> · T.C. {tipoCambio}</span> : <span className="estado mal"> sin tipo de cambio</span>)}</dd>
+            <dt><strong>Total</strong></dt><dd><strong>{dinero(total, monedaCliente)}</strong>{monedaCliente !== monedaBase && tipoCambio ? <span className="suave pequeno"> · {dinero(totalBase, monedaBase)}</span> : null}</dd>
+            {!esRevendedor && <><dt>Comisión ({pct}%)</dt><dd>{dinero((totalBase * pct) / 100, monedaBase)} <span className="suave pequeno">se devenga al confirmar el cobro</span></dd></>}
           </dl>
           {plan?.tipo === 'demo' && <Aviso tipo="info">La demo se activa al instante por {plan.duracion_dias || ajustes.demo_dias || 7} días y cuenta para tu tope semanal.</Aviso>}
           {plan?.tipo === 'vitalicio' && <Aviso tipo="info">Vitalicio: uso perpetuo con soporte y actualizaciones por {ajustes.soporte_vitalicio_dias || 365} días; luego se vende el plan de mantenimiento.</Aviso>}
@@ -129,12 +138,13 @@ export function VentaNueva() {
       </div>
 
       <Modal titulo="Nuevo cliente" abierto={nuevoCliente} cerrar={() => setNuevoCliente(false)}>
-        <Formulario onEnviar={crearCliente} cancelar={() => setNuevoCliente(false)}>
+        <Formulario onEnviar={crearCliente} cancelar={() => setNuevoCliente(false)} exito="Cliente creado">
           <Campo etiqueta="Nombre"><input value={nc.nombre} onChange={(e) => setNc({ ...nc, nombre: e.target.value })} required autoFocus /></Campo>
           <Campo etiqueta="Empresa / negocio"><input value={nc.empresa} onChange={(e) => setNc({ ...nc, empresa: e.target.value })} /></Campo>
           <Campo etiqueta="Teléfono (WhatsApp)"><input value={nc.telefono} onChange={(e) => setNc({ ...nc, telefono: e.target.value })} /></Campo>
           <Campo etiqueta="Correo"><input type="email" value={nc.email} onChange={(e) => setNc({ ...nc, email: e.target.value })} /></Campo>
           <Campo etiqueta="País"><input value={nc.pais} onChange={(e) => setNc({ ...nc, pais: e.target.value })} placeholder="PE, BO, CO…" /></Campo>
+          <Campo etiqueta="Moneda en la que paga" ayuda="Debe tener tipo de cambio en Ajustes."><select value={nc.moneda} onChange={(e) => setNc({ ...nc, moneda: e.target.value })}><option value="">{monedaBase} (base)</option>{(() => { try { return Object.keys(JSON.parse(ajustes.tipos_cambio || '{}')).filter((m) => m !== monedaBase).map((m) => <option key={m} value={m}>{m}</option>); } catch { return null; } })()}</select></Campo>
         </Formulario>
       </Modal>
     </>

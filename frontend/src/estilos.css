@@ -157,3 +157,12 @@ input:focus, select:focus, textarea:focus { outline: 2px solid #bfdbfe; border-c
   .tarjeta { box-shadow: none; break-inside: avoid; }
   body { background: #fff; }
 }
+
+/* ---------- Páginas públicas (compra, pago, pedido) ---------- */
+.publico { min-height: 100vh; background: var(--fondo); display: flex; flex-direction: column; }
+.publico-cab { background: var(--lateral); color: #fff; padding: 12px 20px; display: flex; align-items: center; gap: 10px; font-size: 16px; }
+.publico-cuerpo { width: min(1080px, 100%); margin: 0 auto; padding: 24px 16px 48px; flex: 1; }
+.publico-pie { text-align: center; color: var(--texto-suave); font-size: 12px; padding: 16px; }
+.producto-publico { padding: 10px 0; border-bottom: 1px solid var(--borde); } .producto-publico:last-child { border-bottom: 0; }
+.barra-meta { height: 10px; background: #e5e7eb; border-radius: 999px; overflow: hidden; margin: 6px 0; } .barra-meta > div { height: 100%; background: var(--ok); transition: width .3s; }
+.barra-meta.pendiente > div { background: var(--primario); }

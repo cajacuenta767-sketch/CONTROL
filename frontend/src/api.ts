@@ -79,7 +79,31 @@ export const api = {
   get: <T,>(ruta: string, params?: Record<string, unknown>) => llamar<T>('GET', `${ruta}${query(params)}`),
   post: <T,>(ruta: string, cuerpo?: unknown) => llamar<T>('POST', ruta, cuerpo ?? {}),
   patch: <T,>(ruta: string, cuerpo?: unknown) => llamar<T>('PATCH', ruta, cuerpo ?? {}),
+  /** Descarga un binario autenticado (PDF, comprobante) y lo abre en otra pestaña. */
+  abrir: async (ruta: string) => {
+    const t = sesion.token();
+    const r = await fetch(`/api/v1${ruta}`, { headers: t ? { Authorization: `Bearer ${t}` } : {}, credentials: 'include' });
+    if (!r.ok) throw new ErrorApi(r.status, await r.json().catch(() => null));
+    const url = URL.createObjectURL(await r.blob());
+    window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  },
+  /** Sube un archivo (multipart) al campo "archivo". */
+  subir: async <T,>(ruta: string, archivo: File): Promise<T> => {
+    const t = sesion.token();
+    const fd = new FormData(); fd.append('archivo', archivo);
+    const r = await fetch(`/api/v1${ruta}`, { method: 'POST', headers: t ? { Authorization: `Bearer ${t}` } : {}, credentials: 'include', body: fd });
+    const datos = await r.json().catch(() => null);
+    if (!r.ok) throw new ErrorApi(r.status, datos);
+    return datos as T;
+  },
 };
+
+/** Rellena una plantilla con {marcadores}. */
+export const plantilla = (texto: string, vars: Record<string, string | number | null | undefined>) =>
+  String(texto || '').replace(/\{(\w+)\}/g, (_, k) => (vars[k] ?? '') as string);
+
+export const copiar = (texto: string) => navigator.clipboard?.writeText(texto);
 
 export const dinero = (n: number | null | undefined, moneda = 'USD') =>
   new Intl.NumberFormat('es', { style: 'currency', currency: moneda, maximumFractionDigits: 2 }).format(Number(n || 0));

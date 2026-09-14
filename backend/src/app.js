@@ -15,7 +15,8 @@ import { rutasClientes } from './rutas/clientes.rutas.js';
 import { rutasVentas, rutasPagos } from './rutas/ventas.rutas.js';
 import { rutasLicencias, rutasLicenciasPublicas } from './rutas/licencias.rutas.js';
 import { rutasCaja, rutasComisiones, rutasLiquidaciones } from './rutas/caja.rutas.js';
-import { rutasReportes, rutasAuditoria, rutasAjustes } from './rutas/sistema.rutas.js';
+import { rutasReportes, rutasAuditoria, rutasAjustes, rutasCorreos, rutasErrores } from './rutas/sistema.rutas.js';
+import { rutasPublico, rutasWebhooks } from './rutas/publico.rutas.js';
 
 /** La app se exporta sin escuchar para poder probarla con supertest. */
 export function crearApp() {
@@ -31,6 +32,7 @@ export function crearApp() {
     crossOriginEmbedderPolicy: false,
   }));
   app.use(cors({ origin: config.origenesPermitidos }));
+  app.use('/api/v1/webhooks', rutasWebhooks); // cuerpo crudo: va antes del parser JSON
   app.use(express.json({ limit: '1mb' }));
   app.use(middlewareContexto);
   app.use('/api', rateLimit({ windowMs: 60 * 1000, limit: 600, standardHeaders: 'draft-8', legacyHeaders: false }));
@@ -52,6 +54,9 @@ export function crearApp() {
   app.use('/api/v1/reportes', rutasReportes);
   app.use('/api/v1/auditoria', rutasAuditoria);
   app.use('/api/v1/ajustes', rutasAjustes);
+  app.use('/api/v1/publico', rutasPublico);
+  app.use('/api/v1/correos', rutasCorreos);
+  app.use('/api/v1/errores', rutasErrores);
 
   app.use('/api', (req, res) => res.status(404).json({ error: 'Ruta no encontrada' }));
 

@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
-import { obtenerDb, transaccion, ajusteNumero, ahoraSql, modZona } from '../db.js';
+import { obtenerDb, transaccion, ajuste, ajusteNumero, ahoraSql, modZona, hoyLocal } from '../db.js';
 import { ErrorHttp, noEncontrado, prohibido } from '../middleware/errores.js';
-import { esGestor, esSuperadmin } from '../middleware/auth.js';
+import { esGestor, esSuperadmin, esRevendedor } from '../middleware/auth.js';
 import { auditar } from './auditoria.js';
 import { obtenerPlan } from './catalogo.js';
 import { obtenerCliente } from './clientes.js';
@@ -18,8 +18,22 @@ export function generarClave(db) {
   return clave;
 }
 
-const VENTA_BASE = `SELECT v.*, c.nombre AS cliente_nombre, c.empresa AS cliente_empresa,
-  u.nombre AS vendedor_nombre, pr.nombre AS producto_nombre, pr.codigo AS producto_codigo,
+/** Tipos de cambio configurados (unidades de cada moneda por 1 unidad de la moneda base). */
+export function tiposCambio() {
+  try { return JSON.parse(ajuste('tipos_cambio', '{}')) || {}; } catch { return {}; }
+}
+
+export function tipoCambioDe(moneda) {
+  const base = ajuste('moneda_base', 'USD');
+  if (!moneda || moneda === base) return 1;
+  const tc = Number(tiposCambio()[moneda]);
+  if (!tc || tc <= 0) throw new ErrorHttp(422, `No hay tipo de cambio configurado para ${moneda}. Agrégalo en Ajustes.`);
+  return tc;
+}
+
+const VENTA_BASE = `SELECT v.*, c.nombre AS cliente_nombre, c.empresa AS cliente_empresa, c.telefono AS cliente_telefono, c.email AS cliente_email,
+  u.nombre AS vendedor_nombre, u.rol AS vendedor_rol, u.marca_nombre AS marca_nombre,
+  pr.nombre AS producto_nombre, pr.codigo AS producto_codigo,
   pl.nombre AS plan_nombre, pl.tipo AS plan_tipo,
   (SELECT COALESCE(SUM(p.monto),0) FROM pagos p WHERE p.venta_id = v.id AND p.estado = 'confirmado') AS pagado,
   (SELECT COALESCE(SUM(p.monto),0) FROM pagos p WHERE p.venta_id = v.id AND p.estado = 'pendiente') AS por_confirmar
@@ -33,28 +47,28 @@ const VENTA_BASE = `SELECT v.*, c.nombre AS cliente_nombre, c.empresa AS cliente
  * Registra una venta. Crea una licencia por cada unidad (sucursal) en
  * `pendiente_pago`. Las demos se activan al instante con total 0.
  * Una renovación (renueva_licencia_id) no crea licencias: extiende la existente al pagarse.
+ * Un revendedor compra a precio mayorista; si tiene cupo prepagado la venta se confirma sola.
  */
-export function crearVenta(datos, actor) {
+export function crearVenta(datos, actor, { origen = null } = {}) {
   const plan = obtenerPlan(datos.plan_id);
   if (!plan.activo) throw new ErrorHttp(422, 'El plan no está activo');
   const cliente = obtenerCliente(datos.cliente_id, actor);
 
   const vendedorId = esGestor(actor) && datos.vendedor_id ? datos.vendedor_id : cliente.vendedor_id || actor.id;
+  const vendedor = obtenerDb().prepare('SELECT id, rol, cupo_licencias, descuento_mayorista_pct FROM usuarios WHERE id = ?').get(vendedorId);
+  const revendedor = vendedor?.rol === 'revendedor';
   const esDemo = plan.tipo === 'demo';
   const esRenovacion = Boolean(datos.renueva_licencia_id);
   const cantidad = esRenovacion ? 1 : datos.cantidad ?? 1;
 
   const topeDescuento = ajusteNumero('tope_descuento_pct', 10);
-  const descuento = datos.descuento_pct ?? 0;
-  if (descuento > topeDescuento && !esSuperadmin(actor)) {
-    throw new ErrorHttp(422, `El descuento máximo permitido es ${topeDescuento}%`);
-  }
+  let descuento = datos.descuento_pct ?? 0;
+  if (descuento > topeDescuento && !esSuperadmin(actor)) throw new ErrorHttp(422, `El descuento máximo permitido es ${topeDescuento}%`);
+  if (revendedor) descuento = vendedor.descuento_mayorista_pct ?? 30;
 
   if (!esSuperadmin(actor) && !esRenovacion) {
     if (esDemo) {
-      if (demosSemana(actor.id) + cantidad > actor.tope_demos_semana) {
-        throw new ErrorHttp(422, `Superaste tu tope de ${actor.tope_demos_semana} demos por semana`);
-      }
+      if (demosSemana(actor.id) + cantidad > actor.tope_demos_semana) throw new ErrorHttp(422, `Superaste tu tope de ${actor.tope_demos_semana} demos por semana`);
     } else if (emisionesHoy(actor.id) + cantidad > actor.tope_emisiones_dia) {
       throw new ErrorHttp(422, `Superaste tu tope de ${actor.tope_emisiones_dia} licencias por día`);
     }
@@ -69,8 +83,12 @@ export function crearVenta(datos, actor) {
     if (licenciaARenovar.estado === 'revocada') throw new ErrorHttp(422, 'Una licencia revocada no se puede renovar');
   }
 
-  const precioUnitario = esDemo ? 0 : plan.precio;
-  const total = redondear(precioUnitario * cantidad * (1 - descuento / 100));
+  const moneda = (datos.moneda || cliente.moneda || ajuste('moneda_base', 'USD')).toUpperCase();
+  const tipoCambio = datos.tipo_cambio ?? tipoCambioDe(moneda);
+  const precioUnitarioBase = esDemo ? 0 : plan.precio;
+  const totalBase = redondear(precioUnitarioBase * cantidad * (1 - descuento / 100));
+  const total = redondear(totalBase * tipoCambio);
+  const usaCupo = revendedor && !esDemo && !esRenovacion && (vendedor.cupo_licencias ?? 0) >= cantidad;
 
   return transaccion((db) => {
     const anio = new Date().getUTCFullYear();
@@ -79,13 +97,13 @@ export function crearVenta(datos, actor) {
     const r = db
       .prepare(
         `INSERT INTO ventas (numero, cliente_id, vendedor_id, creado_por, producto_id, plan_id, renueva_licencia_id, cantidad,
-          precio_unitario, descuento_pct, total, moneda, tipo_cambio, estado, es_renovacion, notas, pagada_en)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          precio_unitario, descuento_pct, total, total_base, moneda, tipo_cambio, estado, es_renovacion, notas, pagada_en)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         numero, cliente.id, vendedorId, actor.id, plan.producto_id, plan.id, datos.renueva_licencia_id ?? null, cantidad,
-        precioUnitario, descuento, total, datos.moneda ?? cliente.moneda ?? 'USD', datos.tipo_cambio ?? 1,
-        esDemo ? 'pagada' : 'pendiente', esRenovacion ? 1 : 0, datos.notas ?? null, esDemo ? ahoraSql() : null
+        redondear(precioUnitarioBase * tipoCambio), descuento, total, totalBase, moneda, tipoCambio,
+        esDemo ? 'pagada' : 'pendiente', esRenovacion ? 1 : 0, [origen ? `Origen: ${origen}` : null, datos.notas].filter(Boolean).join(' · ') || null, esDemo ? ahoraSql() : null
       );
     const ventaId = Number(r.lastInsertRowid);
 
@@ -110,13 +128,23 @@ export function crearVenta(datos, actor) {
     auditar({
       usuarioId: actor.id, accion: esDemo ? 'venta.demo' : esRenovacion ? 'venta.renovacion' : 'venta.crear',
       entidad: 'venta', entidadId: ventaId,
-      detalle: { numero, cliente: cliente.nombre, plan: plan.nombre, cantidad, total, descuento_pct: descuento },
+      detalle: { numero, cliente: cliente.nombre, plan: plan.nombre, cantidad, total, moneda, total_base: totalBase, descuento_pct: descuento, origen },
     });
+
+    if (usaCupo) {
+      // El revendedor ya pagó su cupo: se registra el pago y se confirma en el acto.
+      db.prepare('UPDATE usuarios SET cupo_licencias = cupo_licencias - ? WHERE id = ?').run(cantidad, vendedorId);
+      const pago = db
+        .prepare("INSERT INTO pagos (venta_id, monto, monto_base, metodo, referencia, registrado_por, estado, confirmado_en) VALUES (?, ?, ?, 'otro', ?, ?, 'pendiente', NULL)")
+        .run(ventaId, total, totalBase, `Cupo prepagado (${cantidad})`, actor.id);
+      procesarPagoConfirmado(db, Number(pago.lastInsertRowid), null);
+      auditar({ usuarioId: actor.id, accion: 'venta.cupo_revendedor', entidad: 'venta', entidadId: ventaId, detalle: { cantidad, cupo_restante: (vendedor.cupo_licencias ?? 0) - cantidad } });
+    }
     return obtenerVenta(ventaId);
   });
 }
 
-export function listarVentas(usuario, { estado, vendedor_id, cliente_id, desde, hasta, q } = {}) {
+export function listarVentas(usuario, { estado, vendedor_id, cliente_id, desde, hasta, q, pagina, por_pagina } = {}) {
   const condiciones = [];
   const params = [];
   if (!esGestor(usuario)) { condiciones.push('v.vendedor_id = ?'); params.push(usuario.id); }
@@ -127,7 +155,14 @@ export function listarVentas(usuario, { estado, vendedor_id, cliente_id, desde, 
   if (hasta) { condiciones.push('date(v.creado_en, ?) <= ?'); params.push(modZona(), hasta); }
   if (q) { condiciones.push('(v.numero LIKE ? OR c.nombre LIKE ? OR c.empresa LIKE ?)'); params.push(`%${q}%`, `%${q}%`, `%${q}%`); }
   const where = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : '';
-  return obtenerDb().prepare(`${VENTA_BASE} ${where} ORDER BY v.id DESC LIMIT 500`).all(...params);
+  const db = obtenerDb();
+  if (pagina) {
+    const porPagina = Math.min(200, Number(por_pagina) || 50);
+    const total = db.prepare(`SELECT COUNT(*) AS c FROM ventas v JOIN clientes c ON c.id = v.cliente_id ${where}`).get(...params).c;
+    const filas = db.prepare(`${VENTA_BASE} ${where} ORDER BY v.id DESC LIMIT ? OFFSET ?`).all(...params, porPagina, (Number(pagina) - 1) * porPagina);
+    return { filas, total, pagina: Number(pagina), por_pagina: porPagina };
+  }
+  return db.prepare(`${VENTA_BASE} ${where} ORDER BY v.id DESC LIMIT 500`).all(...params);
 }
 
 export function obtenerVenta(id, usuario) {
@@ -145,7 +180,9 @@ export function obtenerVenta(id, usuario) {
   v.licencias = db.prepare('SELECT * FROM licencias WHERE venta_id = ? ORDER BY id').all(id);
   if (v.renueva_licencia_id) v.licencia_renovada = db.prepare('SELECT * FROM licencias WHERE id = ?').get(v.renueva_licencia_id);
   v.comisiones = db.prepare('SELECT * FROM comisiones WHERE venta_id = ? ORDER BY id').all(id);
+  v.enlaces_pago = db.prepare('SELECT id, proveedor, url, monto, moneda, estado, creado_en, pagado_en FROM enlaces_pago WHERE venta_id = ? ORDER BY id DESC').all(id);
   v.saldo = redondear(v.total - v.pagado);
+  v.moneda_base = ajuste('moneda_base', 'USD');
   return v;
 }
 
@@ -156,59 +193,77 @@ export function registrarPago(ventaId, datos, actor) {
   if (v.total === 0) throw new ErrorHttp(422, 'Esta venta no requiere cobro');
   const comprometido = redondear(v.pagado + v.por_confirmar);
   if (redondear(comprometido + datos.monto) > v.total + 0.005) {
-    throw new ErrorHttp(422, `El monto supera el saldo pendiente (${redondear(v.total - comprometido)})`);
+    throw new ErrorHttp(422, `El monto supera el saldo pendiente (${redondear(v.total - comprometido)} ${v.moneda})`);
   }
+  const monto = redondear(datos.monto);
   const r = obtenerDb()
-    .prepare('INSERT INTO pagos (venta_id, monto, metodo, referencia, comprobante, registrado_por) VALUES (?, ?, ?, ?, ?, ?)')
-    .run(ventaId, redondear(datos.monto), datos.metodo, datos.referencia ?? null, datos.comprobante ?? null, actor.id);
+    .prepare('INSERT INTO pagos (venta_id, monto, monto_base, metodo, referencia, comprobante, registrado_por) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .run(ventaId, monto, redondear(monto / (v.tipo_cambio || 1)), datos.metodo, datos.referencia ?? null, datos.comprobante ?? null, actor.id);
   const pagoId = Number(r.lastInsertRowid);
-  auditar({ usuarioId: actor.id, accion: 'pago.registrar', entidad: 'pago', entidadId: pagoId, detalle: { venta: v.numero, monto: datos.monto, metodo: datos.metodo } });
+  auditar({ usuarioId: actor.id, accion: 'pago.registrar', entidad: 'pago', entidadId: pagoId, detalle: { venta: v.numero, monto, moneda: v.moneda, metodo: datos.metodo } });
   return obtenerVenta(ventaId);
 }
 
-/** Porcentaje de comisión aplicable a un pago de esta venta. */
+/** Porcentaje de comisión aplicable a un pago de esta venta (con bono por meta cumplida). */
 function porcentajeComision(db, venta, plan) {
-  if (plan.comision_pct !== null && plan.comision_pct !== undefined) return plan.comision_pct;
-  const vendedor = db.prepare('SELECT comision_pct FROM usuarios WHERE id = ?').get(venta.vendedor_id);
-  if (venta.es_renovacion && venta.renueva_licencia_id) {
-    const lic = db.prepare('SELECT activa_desde FROM licencias WHERE id = ?').get(venta.renueva_licencia_id);
-    // Renovación después del primer año: porcentaje reducido.
-    if (lic?.activa_desde && Date.now() - Date.parse(lic.activa_desde.replace(' ', 'T') + 'Z') > 365 * 86400000) {
-      return ajusteNumero('comision_renovacion_pct', 10);
+  const vendedor = db.prepare('SELECT comision_pct, rol FROM usuarios WHERE id = ?').get(venta.vendedor_id);
+  if (vendedor?.rol === 'revendedor') return 0; // gana por margen mayorista, no por comisión
+  let pct;
+  if (plan.comision_pct !== null && plan.comision_pct !== undefined) pct = plan.comision_pct;
+  else {
+    pct = vendedor?.comision_pct ?? 20;
+    if (venta.es_renovacion && venta.renueva_licencia_id) {
+      const lic = db.prepare('SELECT activa_desde FROM licencias WHERE id = ?').get(venta.renueva_licencia_id);
+      if (lic?.activa_desde && Date.now() - Date.parse(lic.activa_desde.replace(' ', 'T') + 'Z') > 365 * 86400000) pct = ajusteNumero('comision_renovacion_pct', 10);
     }
   }
-  return vendedor?.comision_pct ?? 20;
+  // Bono por meta: si el vendedor ya alcanzó su objetivo del mes, los cobros siguientes llevan el bono.
+  const mes = hoyLocal().slice(0, 7);
+  const meta = db.prepare('SELECT objetivo_monto, bono_pct FROM metas WHERE usuario_id = ? AND mes = ?').get(venta.vendedor_id, mes);
+  if (meta) {
+    const vendido = db.prepare("SELECT COALESCE(SUM(total_base),0) AS s FROM ventas WHERE vendedor_id = ? AND estado = 'pagada' AND strftime('%Y-%m', pagada_en, ?) = ?").get(venta.vendedor_id, modZona(), mes).s;
+    if (vendido >= meta.objetivo_monto) pct += meta.bono_pct;
+  }
+  return pct;
 }
 
-/** Un gestor confirma el pago: devenga comisión y, si cubre el total, activa las licencias. */
+/**
+ * Marca un pago como confirmado, devenga la comisión y, si la venta queda cubierta,
+ * la pasa a pagada y activa las licencias. `actorId` null = confirmación automática (pasarela, cupo).
+ */
+export function procesarPagoConfirmado(db, pagoId, actorId) {
+  const pago = db.prepare('SELECT * FROM pagos WHERE id = ?').get(pagoId);
+  if (!pago) throw noEncontrado('Pago no encontrado');
+  if (pago.estado !== 'pendiente') throw new ErrorHttp(422, 'El pago ya fue procesado');
+  const venta = db.prepare('SELECT * FROM ventas WHERE id = ?').get(pago.venta_id);
+  if (venta.estado === 'anulada') throw new ErrorHttp(422, 'La venta está anulada');
+  const plan = obtenerPlan(venta.plan_id);
+  const ahora = ahoraSql();
+
+  db.prepare("UPDATE pagos SET estado = 'confirmado', confirmado_por = ?, confirmado_en = ? WHERE id = ?").run(actorId, ahora, pagoId);
+
+  const base = pago.monto_base ?? redondear(pago.monto / (venta.tipo_cambio || 1));
+  const pct = porcentajeComision(db, venta, plan);
+  const monto = redondear((base * pct) / 100);
+  if (monto > 0) {
+    db.prepare('INSERT INTO comisiones (venta_id, pago_id, vendedor_id, base, pct, monto) VALUES (?, ?, ?, ?, ?, ?)').run(venta.id, pagoId, venta.vendedor_id, base, pct, monto);
+  }
+
+  const pagado = db.prepare("SELECT COALESCE(SUM(monto),0) AS s FROM pagos WHERE venta_id = ? AND estado = 'confirmado'").get(venta.id).s;
+  let activadas = 0;
+  if (pagado + 0.005 >= venta.total && venta.estado !== 'pagada') {
+    db.prepare("UPDATE ventas SET estado = 'pagada', pagada_en = ? WHERE id = ?").run(ahora, venta.id);
+    activadas = activarLicenciasDeVenta(db, venta, plan, ahora);
+  }
+  auditar({ usuarioId: actorId, accion: actorId ? 'pago.confirmar' : 'pago.confirmar_automatico', entidad: 'pago', entidadId: pagoId,
+    detalle: { venta: venta.numero, monto: pago.monto, moneda: venta.moneda, base, comision: monto, pct, licencias_activadas: activadas } });
+  return { venta, activadas };
+}
+
+/** Un gestor confirma el pago. */
 export function confirmarPago(pagoId, actor) {
   return transaccion((db) => {
-    const pago = db.prepare('SELECT * FROM pagos WHERE id = ?').get(pagoId);
-    if (!pago) throw noEncontrado('Pago no encontrado');
-    if (pago.estado !== 'pendiente') throw new ErrorHttp(422, 'El pago ya fue procesado');
-    const venta = db.prepare('SELECT * FROM ventas WHERE id = ?').get(pago.venta_id);
-    if (venta.estado === 'anulada') throw new ErrorHttp(422, 'La venta está anulada');
-    const plan = obtenerPlan(venta.plan_id);
-    const ahora = ahoraSql();
-
-    db.prepare("UPDATE pagos SET estado = 'confirmado', confirmado_por = ?, confirmado_en = ? WHERE id = ?").run(actor.id, ahora, pagoId);
-
-    const pct = porcentajeComision(db, venta, plan);
-    const monto = redondear((pago.monto * pct) / 100);
-    if (monto > 0) {
-      db.prepare('INSERT INTO comisiones (venta_id, pago_id, vendedor_id, base, pct, monto) VALUES (?, ?, ?, ?, ?, ?)')
-        .run(venta.id, pagoId, venta.vendedor_id, pago.monto, pct, monto);
-    }
-
-    const pagado = db.prepare("SELECT COALESCE(SUM(monto),0) AS s FROM pagos WHERE venta_id = ? AND estado = 'confirmado'").get(venta.id).s;
-    let activadas = 0;
-    if (pagado + 0.005 >= venta.total && venta.estado !== 'pagada') {
-      db.prepare("UPDATE ventas SET estado = 'pagada', pagada_en = ? WHERE id = ?").run(ahora, venta.id);
-      activadas = activarLicenciasDeVenta(db, venta, plan, ahora);
-    }
-
-    auditar({ usuarioId: actor.id, accion: 'pago.confirmar', entidad: 'pago', entidadId: pagoId,
-      detalle: { venta: venta.numero, monto: pago.monto, comision: monto, pct, licencias_activadas: activadas } });
+    const { venta } = procesarPagoConfirmado(db, pagoId, actor.id);
     return obtenerVenta(venta.id);
   });
 }
@@ -248,6 +303,24 @@ export function rechazarPago(pagoId, motivo, actor) {
   return obtenerVenta(pago.venta_id);
 }
 
+/** Guarda la ruta del comprobante subido para un pago. */
+export function adjuntarComprobante(pagoId, rutaArchivo, actor) {
+  const db = obtenerDb();
+  const pago = db.prepare('SELECT p.*, v.vendedor_id FROM pagos p JOIN ventas v ON v.id = p.venta_id WHERE p.id = ?').get(pagoId);
+  if (!pago) throw noEncontrado('Pago no encontrado');
+  if (!esGestor(actor) && pago.registrado_por !== actor.id && pago.vendedor_id !== actor.id) throw prohibido();
+  db.prepare('UPDATE pagos SET comprobante_archivo = ? WHERE id = ?').run(rutaArchivo, pagoId);
+  auditar({ usuarioId: actor.id, accion: 'pago.comprobante', entidad: 'pago', entidadId: pagoId });
+  return obtenerVenta(pago.venta_id);
+}
+
+export function obtenerPago(pagoId, usuario) {
+  const pago = obtenerDb().prepare('SELECT p.*, v.vendedor_id, v.numero AS venta_numero FROM pagos p JOIN ventas v ON v.id = p.venta_id WHERE p.id = ?').get(pagoId);
+  if (!pago) throw noEncontrado('Pago no encontrado');
+  if (usuario && !esGestor(usuario) && pago.vendedor_id !== usuario.id && pago.registrado_por !== usuario.id) throw prohibido();
+  return pago;
+}
+
 /** Anula la venta: revoca sus licencias y revierte comisiones. Solo superadmin. */
 export function anularVenta(ventaId, motivo, actor) {
   return transaccion((db) => {
@@ -258,7 +331,7 @@ export function anularVenta(ventaId, motivo, actor) {
     db.prepare("UPDATE ventas SET estado = 'anulada', motivo_anulacion = ? WHERE id = ?").run(motivo, ventaId);
     db.prepare("UPDATE licencias SET estado = 'revocada', motivo_estado = ? WHERE venta_id = ? AND estado != 'revocada'").run(`Venta anulada: ${motivo}`, ventaId);
     db.prepare("UPDATE pagos SET estado = 'rechazado', motivo_rechazo = ? WHERE venta_id = ? AND estado = 'pendiente'").run('Venta anulada', ventaId);
-    // Comisiones devengadas se revierten; las ya liquidadas generan un cargo negativo.
+    db.prepare("UPDATE enlaces_pago SET estado = 'cancelado' WHERE venta_id = ? AND estado = 'pendiente'").run(ventaId);
     db.prepare("UPDATE comisiones SET estado = 'revertida' WHERE venta_id = ? AND estado = 'devengada'").run(ventaId);
     const liquidadas = db.prepare("SELECT * FROM comisiones WHERE venta_id = ? AND estado = 'liquidada'").all(ventaId);
     for (const c of liquidadas) {
@@ -269,3 +342,5 @@ export function anularVenta(ventaId, motivo, actor) {
     return obtenerVenta(ventaId);
   });
 }
+
+export { esRevendedor };
