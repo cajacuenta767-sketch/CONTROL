@@ -1,4 +1,4 @@
-import { obtenerDb } from '../db.js';
+import { obtenerDb, transaccion, ajuste } from '../db.js';
 import { ErrorHttp, noEncontrado } from '../middleware/errores.js';
 import { auditar } from './auditoria.js';
 
@@ -13,8 +13,58 @@ export function listarProductos({ incluirInactivos = false } = {}) {
        FROM productos p ${incluirInactivos ? '' : 'WHERE p.activo = 1'} ORDER BY p.nombre`
     )
     .all();
-  const planes = db.prepare('SELECT * FROM planes ORDER BY producto_id, precio').all();
+  const planes = db.prepare(`SELECT pl.*,
+      (SELECT h.creado_en FROM precios_historial h WHERE h.plan_id = pl.id ORDER BY h.id DESC LIMIT 1) AS precio_desde,
+      (SELECT h.precio_anterior FROM precios_historial h WHERE h.plan_id = pl.id ORDER BY h.id DESC LIMIT 1) AS precio_anterior
+    FROM planes pl ORDER BY pl.producto_id, pl.precio`).all();
   return productos.map((p) => ({ ...p, planes: planes.filter((pl) => pl.producto_id === p.id) }));
+}
+
+/** Niveles de precio sugeridos (Ajustes › niveles_precio) para aplicar de un clic en el editor. */
+export function nivelesPrecio() {
+  try { const n = JSON.parse(ajuste('niveles_precio', '[]')); return Array.isArray(n) ? n : []; } catch { return []; }
+}
+
+const TIPOS_PRECIO = ['mensual', 'anual', 'vitalicio', 'sucursal_extra', 'mantenimiento'];
+
+/**
+ * Cambia varios precios de golpe (editor de precios del dueño). `cambios` es una lista de
+ * { plan_id, precio }. Solo se registran los que realmente cambian; cada uno queda en
+ * precios_historial y en auditoría. Las ventas ya hechas conservan su precio.
+ */
+export function actualizarPrecios(cambios, motivo, actor) {
+  return transaccion((db) => {
+    const aplicados = [];
+    for (const c of cambios) {
+      const pl = db.prepare('SELECT id, precio, tipo, producto_id FROM planes WHERE id = ?').get(c.plan_id);
+      if (!pl) throw noEncontrado(`Plan ${c.plan_id} no encontrado`);
+      const nuevo = Math.round(Number(c.precio) * 100) / 100;
+      if (!Number.isFinite(nuevo) || nuevo < 0) throw new ErrorHttp(422, 'Precio inválido');
+      if (pl.tipo === 'demo' && nuevo !== 0) throw new ErrorHttp(422, 'La demo siempre es gratis');
+      if (nuevo === pl.precio) continue;
+      db.prepare('UPDATE planes SET precio = ? WHERE id = ?').run(nuevo, pl.id);
+      db.prepare('INSERT INTO precios_historial (plan_id, precio_anterior, precio_nuevo, usuario_id, motivo) VALUES (?, ?, ?, ?, ?)').run(pl.id, pl.precio, nuevo, actor.id, motivo ?? null);
+      aplicados.push({ plan_id: pl.id, producto_id: pl.producto_id, tipo: pl.tipo, anterior: pl.precio, nuevo });
+    }
+    if (aplicados.length) auditar({ usuarioId: actor.id, accion: 'precios.actualizar', entidad: 'catalogo', entidadId: null, detalle: { motivo, cambios: aplicados } });
+    return { aplicados, total: aplicados.length };
+  });
+}
+
+/** Sube o baja todos los precios (o los de un tipo) un porcentaje. Redondea a entero si el precio es mayor a 20. */
+export function ajustarPreciosPorcentaje({ porcentaje, tipos = TIPOS_PRECIO, producto_id = null }, motivo, actor) {
+  const db = obtenerDb();
+  const filas = db.prepare(`SELECT id, precio FROM planes WHERE tipo IN (${tipos.map(() => '?').join(',')}) ${producto_id ? 'AND producto_id = ?' : ''} AND activo = 1`).all(...tipos, ...(producto_id ? [producto_id] : []));
+  const cambios = filas.map((f) => { const n = f.precio * (1 + porcentaje / 100); return { plan_id: f.id, precio: n > 20 ? Math.round(n) : Math.round(n * 100) / 100 }; });
+  return actualizarPrecios(cambios, motivo ?? `Ajuste del ${porcentaje}%`, actor);
+}
+
+export function historialPrecios({ plan_id, limite = 100 } = {}) {
+  return obtenerDb()
+    .prepare(`SELECT h.*, u.nombre AS usuario_nombre, pl.nombre AS plan_nombre, pl.tipo AS plan_tipo, pr.nombre AS producto_nombre
+      FROM precios_historial h LEFT JOIN usuarios u ON u.id = h.usuario_id JOIN planes pl ON pl.id = h.plan_id JOIN productos pr ON pr.id = pl.producto_id
+      ${plan_id ? 'WHERE h.plan_id = ?' : ''} ORDER BY h.id DESC LIMIT ?`)
+    .all(...(plan_id ? [plan_id] : []), limite);
 }
 
 export function obtenerProducto(id) {
@@ -82,7 +132,11 @@ export function actualizarPlan(id, datos, actor) {
   for (const k of ['nombre', 'precio', 'duracion_dias', 'max_activaciones', 'comision_pct', 'activo']) {
     if (datos[k] !== undefined) { campos.push(`${k} = ?`); valores.push(typeof datos[k] === 'boolean' ? Number(datos[k]) : datos[k]); }
   }
+  const antes = obtenerPlan(id);
   if (campos.length) obtenerDb().prepare(`UPDATE planes SET ${campos.join(', ')} WHERE id = ?`).run(...valores, id);
+  if (datos.precio !== undefined && datos.precio !== antes.precio) {
+    obtenerDb().prepare('INSERT INTO precios_historial (plan_id, precio_anterior, precio_nuevo, usuario_id, motivo) VALUES (?, ?, ?, ?, ?)').run(id, antes.precio, datos.precio, actor.id, datos.motivo ?? null);
+  }
   auditar({ usuarioId: actor.id, accion: 'plan.actualizar', entidad: 'plan', entidadId: id, detalle: datos });
   return obtenerPlan(id);
 }

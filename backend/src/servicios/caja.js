@@ -1,6 +1,6 @@
 import { obtenerDb, transaccion, ajuste, ahoraSql, hoyLocal, modZona } from '../db.js';
 import { ErrorHttp, noEncontrado, prohibido } from '../middleware/errores.js';
-import { esGestor } from '../middleware/auth.js';
+import { esGestor, esSuperadmin } from '../middleware/auth.js';
 import { auditar } from './auditoria.js';
 
 const redondear = (n) => Math.round(n * 100) / 100;
@@ -99,7 +99,7 @@ export function revisarCierre(id, { estado, observacion }, actor) {
 export function listarComisiones(usuario, { vendedor_id, estado, desde, hasta } = {}) {
   const condiciones = [];
   const params = [];
-  if (!esGestor(usuario)) { condiciones.push('co.vendedor_id = ?'); params.push(usuario.id); }
+  if (!esSuperadmin(usuario)) { condiciones.push('co.vendedor_id = ?'); params.push(usuario.id); }
   else if (vendedor_id) { condiciones.push('co.vendedor_id = ?'); params.push(vendedor_id); }
   if (estado) { condiciones.push('co.estado = ?'); params.push(estado); }
   if (desde) { condiciones.push('date(co.creado_en, ?) >= ?'); params.push(modZona(), desde); }
@@ -135,7 +135,7 @@ export function obtenerLiquidacion(id, usuario) {
   const db = obtenerDb();
   const l = db.prepare('SELECT l.*, u.nombre AS vendedor_nombre FROM liquidaciones l JOIN usuarios u ON u.id = l.vendedor_id WHERE l.id = ?').get(id);
   if (!l) throw noEncontrado('Liquidación no encontrada');
-  if (usuario && !esGestor(usuario) && l.vendedor_id !== usuario.id) throw prohibido();
+  if (usuario && !esSuperadmin(usuario) && l.vendedor_id !== usuario.id) throw prohibido();
   l.comisiones = db
     .prepare('SELECT co.*, v.numero AS venta_numero, c.nombre AS cliente_nombre FROM comisiones co JOIN ventas v ON v.id = co.venta_id JOIN clientes c ON c.id = v.cliente_id WHERE co.liquidacion_id = ? ORDER BY co.id')
     .all(id);
@@ -145,7 +145,7 @@ export function obtenerLiquidacion(id, usuario) {
 export function listarLiquidaciones(usuario, { vendedor_id } = {}) {
   const condiciones = [];
   const params = [];
-  if (!esGestor(usuario)) { condiciones.push('l.vendedor_id = ?'); params.push(usuario.id); }
+  if (!esSuperadmin(usuario)) { condiciones.push('l.vendedor_id = ?'); params.push(usuario.id); }
   else if (vendedor_id) { condiciones.push('l.vendedor_id = ?'); params.push(vendedor_id); }
   const where = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : '';
   return obtenerDb()

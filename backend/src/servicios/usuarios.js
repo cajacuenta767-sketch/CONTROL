@@ -218,7 +218,16 @@ export function obtenerUsuario(id) {
 }
 
 /** Lista con métricas: licencias emitidas, ventas y comisiones por usuario. */
-export function listarUsuarios() {
+const CAMPOS_DINERO = ['comision_pct', 'total_vendido', 'vendido_mes', 'comision_pendiente', 'comision_liquidada', 'meta_mes', 'meta_bono_pct', 'cupo_licencias', 'descuento_mayorista_pct'];
+
+/** Lista del equipo. `conDinero` (solo el dueño) incluye comisiones, ventas y metas. */
+export function listarUsuarios({ conDinero = true } = {}) {
+  const filas = listarUsuariosCompleto();
+  if (conDinero) return filas;
+  return filas.map((u) => Object.fromEntries(Object.entries(u).filter(([k]) => !CAMPOS_DINERO.includes(k))));
+}
+
+function listarUsuariosCompleto() {
   const db = obtenerDb();
   const hoy = hoyLocal();
   const mes = hoy.slice(0, 7);

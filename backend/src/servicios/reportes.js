@@ -1,5 +1,5 @@
 import { obtenerDb, hoyLocal, ahoraSql, modZona, ajuste } from '../db.js';
-import { esGestor } from '../middleware/auth.js';
+import { esGestor, esSuperadmin } from '../middleware/auth.js';
 import { actualizarEstadosPorFecha } from './licencias.js';
 
 const redondear = (n) => Math.round(n * 100) / 100;
@@ -69,7 +69,13 @@ export function resumen(usuario) {
     })(),
   };
 
-  if (!propio) {
+  if (!esSuperadmin(usuario)) {
+    // Admin y vendedor ven solo su propia comisión, nunca la bolsa de comisiones de la agencia.
+    const propias = db.prepare(`SELECT COALESCE(SUM(CASE WHEN estado = 'devengada' THEN monto END),0) AS pendiente, COALESCE(SUM(CASE WHEN estado = 'liquidada' THEN monto END),0) AS liquidada,
+      COALESCE(SUM(CASE WHEN estado != 'revertida' AND strftime('%Y-%m', creado_en, ?) = ? THEN monto END),0) AS mes FROM comisiones WHERE vendedor_id = ?`).get(z, mes, usuario.id);
+    salida.comisiones = { pendiente: redondear(propias.pendiente), liquidada: redondear(propias.liquidada), mes: redondear(propias.mes) };
+  }
+  if (esSuperadmin(usuario)) {
     salida.equipo = db
       .prepare(`SELECT u.id, u.nombre, u.rol, u.tope_emisiones_dia,
           (SELECT COUNT(*) FROM ventas v WHERE v.vendedor_id = u.id AND strftime('%Y-%m', v.creado_en, ?) = ? AND v.estado != 'anulada') AS ventas_mes,
@@ -131,7 +137,7 @@ export function series(usuario, { meses = 6 } = {}) {
   const porProducto = db.prepare(`SELECT strftime('%Y-%m', pg.confirmado_en, ?) AS mes, pr.nombre AS serie, COALESCE(SUM(COALESCE(pg.monto_base, pg.monto)),0) AS total
     FROM pagos pg JOIN ventas v ON v.id = pg.venta_id JOIN productos pr ON pr.id = v.producto_id
     WHERE pg.estado = 'confirmado' AND strftime('%Y-%m', pg.confirmado_en, ?) >= ? ${filtro} GROUP BY mes, pr.id ORDER BY mes`).all(z, z, desdeMes, ...p);
-  const porVendedor = propio ? [] : db.prepare(`SELECT strftime('%Y-%m', pg.confirmado_en, ?) AS mes, u.nombre AS serie, COALESCE(SUM(COALESCE(pg.monto_base, pg.monto)),0) AS total
+  const porVendedor = !esSuperadmin(usuario) ? [] : db.prepare(`SELECT strftime('%Y-%m', pg.confirmado_en, ?) AS mes, u.nombre AS serie, COALESCE(SUM(COALESCE(pg.monto_base, pg.monto)),0) AS total
     FROM pagos pg JOIN ventas v ON v.id = pg.venta_id JOIN usuarios u ON u.id = v.vendedor_id
     WHERE pg.estado = 'confirmado' AND strftime('%Y-%m', pg.confirmado_en, ?) >= ? GROUP BY mes, u.id ORDER BY mes`).all(z, z, desdeMes);
   const nuevasLicencias = db.prepare(`SELECT strftime('%Y-%m', l.activa_desde, ?) AS mes, COUNT(*) AS total FROM licencias l JOIN ventas v ON v.id = l.venta_id WHERE l.activa_desde IS NOT NULL AND strftime('%Y-%m', l.activa_desde, ?) >= ? ${filtro} GROUP BY mes`).all(z, z, desdeMes, ...p);

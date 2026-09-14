@@ -25,9 +25,9 @@ export function Buscador({ abierto, cerrar }: { abierto: boolean; cerrar: () => 
   const accesos: Item[] = useMemo(() => [
     { grupo: 'Ir a', texto: 'Nueva venta', ruta: '/ventas/nueva' }, { grupo: 'Ir a', texto: 'Ventas', ruta: '/ventas' }, { grupo: 'Ir a', texto: 'Licencias', ruta: '/licencias' },
     { grupo: 'Ir a', texto: 'Clientes', ruta: '/clientes' }, { grupo: 'Ir a', texto: 'Caja', ruta: '/caja' }, { grupo: 'Ir a', texto: 'Comisiones', ruta: '/comisiones' },
-    { grupo: 'Ir a', texto: 'Reportes', ruta: '/reportes' }, { grupo: 'Ir a', texto: 'Tickets de soporte', ruta: '/tickets' }, { grupo: 'Ir a', texto: 'Mi seguridad', ruta: '/seguridad' },
-    ...(esGestor ? [{ grupo: 'Ir a', texto: 'Catálogo', ruta: '/catalogo' }, { grupo: 'Ir a', texto: 'Equipo', ruta: '/equipo' }, { grupo: 'Ir a', texto: 'Auditoría', ruta: '/auditoria' }] : []),
-    ...(esSuper ? [{ grupo: 'Ir a', texto: 'Ajustes', ruta: '/ajustes' }] : []),
+    { grupo: 'Ir a', texto: 'Reportes', ruta: '/reportes' }, { grupo: 'Ir a', texto: 'Lista de precios', ruta: '/precios' }, { grupo: 'Ir a', texto: 'Cómo funciona (guía)', ruta: '/guia' }, { grupo: 'Ir a', texto: 'Tickets de soporte', ruta: '/tickets' }, { grupo: 'Ir a', texto: 'Mi seguridad', ruta: '/seguridad' },
+    ...(esGestor ? [{ grupo: 'Ir a', texto: 'Equipo', ruta: '/equipo' }] : []),
+    ...(esSuper ? [{ grupo: 'Ir a', texto: 'Catálogo', ruta: '/catalogo' }, { grupo: 'Ir a', texto: 'Auditoría', ruta: '/auditoria' }, { grupo: 'Ir a', texto: 'Ajustes', ruta: '/ajustes' }] : []),
   ], [esGestor, esSuper]);
 
   const items: Item[] = useMemo(() => {

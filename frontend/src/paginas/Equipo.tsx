@@ -37,19 +37,21 @@ export function Equipo() {
 
   return (
     <>
-      <header><div><h1>Equipo</h1><p>Vendedores y administradores, con lo que emitió y ganó cada uno.</p></div>{esSuper && <button className="btn" onClick={() => { setF(VACIO); setNuevo(true); }}>+ Usuario</button>}</header>
+      <header><div><h1>Equipo</h1><p>{esSuper ? 'Vendedores y administradores, con lo que emitió y ganó cada uno.' : 'Vendedores y administradores con sus topes. Lo que gana cada uno solo lo ve el dueño.'}</p></div>{esSuper && <button className="btn" onClick={() => { setF(VACIO); setNuevo(true); }}>+ Usuario</button>}</header>
       <Tarjeta>
         <Tabla filas={usuarios} clave={(u) => u.id} columnas={[
           { titulo: 'Nombre', celda: (u) => <>{u.nombre}<br /><span className="suave pequeno">{u.email}</span></>, orden: (u) => u.nombre },
           { titulo: 'Rol', celda: (u) => <><Estado valor={u.rol} />{!u.activo && <> <Estado valor="suspendida" /></>}{u.bloqueado_hasta && <> <Estado valor="mora" /></>}{u.totp_activo ? <span className="suave pequeno"> · 2FA</span> : null}{u.rol === 'revendedor' && <span className="suave pequeno"> · cupo {u.cupo_licencias ?? 0}</span>}</> },
           { titulo: 'Código', celda: (u) => u.codigo_ref ? <code className="clave">{u.codigo_ref}</code> : '—' },
-          { titulo: 'Comisión', celda: (u) => `${u.comision_pct}%`, alinear: 'derecha' },
+          ...(esSuper ? [{ titulo: 'Comisión', celda: (u: any) => `${u.comision_pct}%`, alinear: 'derecha' as const }] : []),
           { titulo: 'Licencias emitidas', celda: (u) => <>{u.licencias_emitidas} <span className="suave pequeno">(hoy {u.licencias_hoy}{u.rol !== 'superadmin' ? ` / ${u.tope_emisiones_dia}` : ''})</span></>, alinear: 'derecha' },
           { titulo: 'Ventas', celda: (u) => u.ventas, alinear: 'derecha' },
-          { titulo: 'Vendido (pagado)', celda: (u) => dinero(u.total_vendido), alinear: 'derecha', orden: (u) => u.total_vendido },
-          { titulo: 'Comisión pendiente', celda: (u) => dinero(u.comision_pendiente), alinear: 'derecha' },
-          { titulo: 'Comisión pagada', celda: (u) => dinero(u.comision_liquidada), alinear: 'derecha' },
-          { titulo: 'Meta del mes', celda: (u) => u.rol === 'vendedor' ? (u.meta_mes ? <><div className="pequeno">{dinero(u.vendido_mes)} / {dinero(u.meta_mes)}</div><div className={`barra-meta ${u.vendido_mes >= u.meta_mes ? '' : 'pendiente'}`}><div style={{ width: `${Math.min(100, (u.vendido_mes / Math.max(1, u.meta_mes)) * 100)}%` }} /></div></> : <span className="suave pequeno">sin meta</span>) : '—' },
+          ...(esSuper ? [
+            { titulo: 'Vendido (pagado)', celda: (u: any) => dinero(u.total_vendido), alinear: 'derecha' as const, orden: (u: any) => u.total_vendido },
+            { titulo: 'Comisión pendiente', celda: (u: any) => dinero(u.comision_pendiente), alinear: 'derecha' as const },
+            { titulo: 'Comisión pagada', celda: (u: any) => dinero(u.comision_liquidada), alinear: 'derecha' as const },
+            { titulo: 'Meta del mes', celda: (u: any) => u.rol === 'vendedor' ? (u.meta_mes ? <><div className="pequeno">{dinero(u.vendido_mes)} / {dinero(u.meta_mes)}</div><div className={`barra-meta ${u.vendido_mes >= u.meta_mes ? '' : 'pendiente'}`}><div style={{ width: `${Math.min(100, (u.vendido_mes / Math.max(1, u.meta_mes)) * 100)}%` }} /></div></> : <span className="suave pequeno">sin meta</span>) : '—' },
+          ] : []),
           { titulo: '', celda: (u) => esSuper ? <div className="fila"><button className="btn secundario chico" onClick={() => setEditar({ ...u, clave: '' })}>Editar</button>{u.rol === 'vendedor' && <button className="btn secundario chico" onClick={() => setMeta({ usuario_id: u.id, nombre: u.nombre, mes: hoy().slice(0, 7), objetivo_monto: u.meta_mes ?? 1000, bono_pct: u.meta_bono_pct ?? 5 })}>Meta</button>}{u.id !== usuario!.id && <BotonAccion texto={u.activo ? 'Desactivar' : 'Activar'} className="btn secundario chico" exito={u.activo ? 'Usuario desactivado' : 'Usuario activado'} onClick={async () => { await api.patch(`/usuarios/${u.id}`, { activo: !u.activo }); await cargar(); }} />}{u.bloqueado_hasta && <BotonAccion texto="Desbloquear" className="btn secundario chico" exito="Usuario desbloqueado" onClick={async () => { await api.patch(`/usuarios/${u.id}`, { desbloquear: true }); await cargar(); }} />}{u.totp_activo && u.id !== usuario!.id ? <BotonAccion texto="Quitar 2FA" className="btn secundario chico" exito="2FA quitado" onClick={async () => { await api.post(`/usuarios/${u.id}/quitar-2fa`); await cargar(); }} /> : null}</div> : null },
         ]} />
       </Tarjeta>

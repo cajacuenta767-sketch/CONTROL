@@ -23,6 +23,7 @@ ReservaFlow, Avendia, BARBER-PRO…) desde un solo panel.
 | Dinero | Multimoneda con tipo de cambio, comprobantes adjuntos, recibos PDF, pasarelas (Stripe, PayPal, demo) con webhook, metas y bono, enlace de venta por vendedor, pedidos externos con API key, revendedores |
 | Operación | Tareas programadas (avisos de vencimiento, recordatorio de caja, renovación automática, respaldos con rotación), correo SMTP, registro de errores, Docker + Caddy |
 | Panel | Búsqueda global (Ctrl+K), paginación en servidor, modo oscuro, reportes mensuales, línea de tiempo del cliente, tickets de soporte, plantillas de WhatsApp, accesible por teclado |
+| Precios y roles | Lista de precios editable solo por el dueño (niveles, ajuste porcentual, historial), simulador de venta, topes de descuento por rol, guía "Cómo funciona" con la matriz de permisos; admin y vendedor no ven comisiones ajenas, auditoría ni ajustes |
 | Integración | SDK Node, PHP y Python; pantalla estándar "Licencia"; versión vigente por producto con alerta de instalaciones desactualizadas; código de emergencia de 72 h sin internet |
 
 La especificación completa está en [`docs/01-especificacion.md`](docs/01-especificacion.md),
@@ -60,8 +61,8 @@ SUPERADMIN_EMAIL=tu@correo.com SUPERADMIN_NOMBRE="Tu nombre" SUPERADMIN_CLAVE='U
 | Comando | Qué hace |
 |---|---|
 | `npm run dev` | API y panel en modo desarrollo |
-| `npm test` | Tests del backend (53: flujo completo, seguridad, dinero, tareas, portal, emergencia) |
-| `npm run e2e` | Compila el panel y recorre 14 flujos en Chromium con Playwright (servidor temporal sembrado) |
+| `npm test` | Tests del backend (59: flujo completo, seguridad, dinero, tareas, portal, emergencia, precios y roles) |
+| `npm run e2e` | Compila el panel y recorre 16 flujos en Chromium con Playwright (servidor temporal sembrado) |
 | `npm run build` | Compila el panel en `frontend/dist`; la API lo sirve sola en producción |
 | `npm start` | Arranca la API (sirve el panel compilado en el mismo puerto) |
 

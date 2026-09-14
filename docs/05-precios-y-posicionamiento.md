@@ -58,8 +58,23 @@ cliente con el tipo de cambio que fija Ajustes.
 | FarmaSys | Farmacias | 4 | 39 | 349 | 790 | 319 | 158 |
 | DENTAL-PRO | Clínicas dentales | 4 | 39 | 349 | 790 | 319 | 158 |
 
-Todos en USD, sin impuestos. Estos son los precios de lista que carga `npm run seed`; el
-superadmin los cambia desde Catálogo sin tocar código.
+Todos en USD, sin impuestos. Estos son los precios de lista que carga `npm run seed`.
+
+## Cómo se cambian los precios (solo el dueño)
+
+En **Lista de precios › Editar precios** el superadmin edita las celdas, aplica un nivel
+(N1 a N4) a un producto con un clic, o sube o baja toda la lista un porcentaje. Cada cambio
+queda en el historial con quién lo hizo y por qué. En cuanto guarda:
+
+- Los vendedores y admins ven la lista nueva al instante y cada venta nueva la usa: el
+  precio nunca se escribe a mano, sale del catálogo.
+- Las ventas ya registradas conservan su precio; las renovaciones futuras usan el nuevo.
+- El descuento que puede aplicar cada rol lo fija el dueño en Ajustes › Ventas (vendedor 10 %
+  y admin 15 % por defecto). Por encima, el sistema rechaza la venta.
+
+El **simulador** de la misma página muestra, para cualquier producto, plan, cantidad de sedes,
+descuento y moneda, qué paga el cliente, qué gana el vendedor y qué recibe la agencia. La
+página **Cómo funciona** explica el recorrido de una venta y quién puede hacer qué.
 
 ## Qué incluye cada plan
 

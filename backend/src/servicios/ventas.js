@@ -61,9 +61,11 @@ export function crearVenta(datos, actor, { origen = null } = {}) {
   const esRenovacion = Boolean(datos.renueva_licencia_id);
   const cantidad = esRenovacion ? 1 : datos.cantidad ?? 1;
 
-  const topeDescuento = ajusteNumero('tope_descuento_pct', 10);
+  // El precio siempre sale del catálogo (el cliente nunca lo envía); el vendedor solo puede aplicar
+  // un descuento dentro del tope que fija el dueño para su rol.
+  const topeDescuento = actor.rol === 'admin' ? ajusteNumero('tope_descuento_admin_pct', 15) : ajusteNumero('tope_descuento_pct', 10);
   let descuento = datos.descuento_pct ?? 0;
-  if (descuento > topeDescuento && !esSuperadmin(actor)) throw new ErrorHttp(422, `El descuento máximo permitido es ${topeDescuento}%`);
+  if (descuento > topeDescuento && !esSuperadmin(actor)) throw new ErrorHttp(422, `Tu descuento máximo es ${topeDescuento}%. Un descuento mayor lo autoriza el dueño.`, { tope: topeDescuento });
   if (revendedor) descuento = vendedor.descuento_mayorista_pct ?? 30;
 
   if (!esSuperadmin(actor) && !esRenovacion) {

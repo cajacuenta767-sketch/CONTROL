@@ -390,6 +390,24 @@ const MIGRACIONES = [
         ('portal_activo', '1');
     `,
   },
+  {
+    version: 3,
+    sql: `
+      CREATE TABLE precios_historial (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        plan_id INTEGER NOT NULL REFERENCES planes(id),
+        precio_anterior REAL,
+        precio_nuevo REAL NOT NULL,
+        usuario_id INTEGER REFERENCES usuarios(id),
+        motivo TEXT,
+        creado_en TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX idx_precios_historial_plan ON precios_historial(plan_id, id);
+      INSERT OR IGNORE INTO ajustes (clave, valor) VALUES
+        ('tope_descuento_admin_pct', '15'),
+        ('niveles_precio', '[{"nombre":"Micro","mensual":7,"anual":59,"vitalicio":149},{"nombre":"Servicios simples","mensual":15,"anual":129,"vitalicio":299},{"nombre":"Negocio establecido","mensual":25,"anual":219,"vitalicio":499},{"nombre":"Profesional regulado","mensual":39,"anual":349,"vitalicio":790}]');
+    `,
+  },
 ];
 
 function migrar(d) {

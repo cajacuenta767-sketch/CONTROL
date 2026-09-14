@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, dinero, ETIQUETA_ESTADO } from '../api';
 import { useSesion } from '../sesion';
 import { useAjustes } from '../ajustes';
@@ -35,7 +35,7 @@ export function VentaNueva() {
   const producto = productos.find((p) => String(p.id) === productoId);
   const plan = producto?.planes.find((p: any) => String(p.id) === planId && p.activo);
   const cliente = clientes.find((c) => String(c.id) === clienteId);
-  const topeDesc = Number(ajustes.tope_descuento_pct || 10);
+  const topeDesc = Number(usuario!.rol === 'admin' ? ajustes.tope_descuento_admin_pct || 15 : ajustes.tope_descuento_pct || 10);
   const esRenovacion = Boolean(renueva);
   const descuentoEfectivo = esRevendedor ? (usuario!.descuento_mayorista_pct ?? 30) : descuento;
   const totalBase = useMemo(() => (plan ? (plan.tipo === 'demo' ? 0 : plan.precio) * (esRenovacion ? 1 : cantidad) * (1 - descuentoEfectivo / 100) : 0), [plan, cantidad, descuentoEfectivo, esRenovacion]);
@@ -104,8 +104,9 @@ export function VentaNueva() {
             )}
             {esRevendedor && plan && plan.tipo !== 'demo' && <Aviso tipo="info">Precio mayorista: {usuario!.descuento_mayorista_pct ?? 30}% de descuento sobre lista. {(usuario!.cupo_licencias ?? 0) >= cantidad ? `Se descontará de tu cupo (${usuario!.cupo_licencias}) y la venta se confirma al instante.` : 'Sin cupo suficiente: la venta queda pendiente hasta que la agencia confirme tu pago.'}</Aviso>}
             {plan && plan.tipo !== 'demo' && !esRevendedor && (
-              <Campo etiqueta={`Descuento % (máximo ${esSuper ? 'sin límite' : `${topeDesc}%`})`}>
+              <Campo etiqueta={`Descuento % (máximo ${esSuper ? 'sin límite' : `${topeDesc}%`})`} ayuda={esSuper ? undefined : 'El precio sale de la lista del dueño; un descuento mayor a tu tope lo autoriza él.'}>
                 <input type="number" min={0} max={esSuper ? 100 : topeDesc} step={0.5} value={descuento} onChange={(e) => setDescuento(Number(e.target.value))} />
+                {!esSuper && descuento > topeDesc && <span className="estado mal" style={{ marginTop: 4 }}>Supera tu tope de {topeDesc}%</span>}
               </Campo>
             )}
             {esGestor && (
@@ -125,7 +126,7 @@ export function VentaNueva() {
             <dt>Cliente</dt><dd>{cliente?.nombre || '—'}</dd>
             <dt>Producto</dt><dd>{producto?.nombre || '—'}</dd>
             <dt>Plan</dt><dd>{plan ? `${plan.nombre} (${ETIQUETA_ESTADO[plan.tipo]})` : '—'}</dd>
-            <dt>Precio unitario</dt><dd>{plan ? dinero(plan.tipo === 'demo' ? 0 : plan.precio) : '—'}</dd>
+            <dt>Precio unitario</dt><dd>{plan ? <>{dinero(plan.tipo === 'demo' ? 0 : plan.precio)} <Link to="/precios" className="suave pequeno">lista</Link></> : '—'}</dd>
             <dt>Licencias</dt><dd>{esRenovacion ? 'Renueva 1 existente' : cantidad}</dd>
             <dt>Descuento</dt><dd>{descuentoEfectivo}%{esRevendedor && <span className="suave pequeno"> (mayorista)</span>}</dd>
             <dt>Moneda</dt><dd>{monedaCliente}{monedaCliente !== monedaBase && (tipoCambio ? <span className="suave pequeno"> · T.C. {tipoCambio}</span> : <span className="estado mal"> sin tipo de cambio</span>)}</dd>

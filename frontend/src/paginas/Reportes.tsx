@@ -49,7 +49,7 @@ function BarrasApiladas({ meses, puntos, moneda, formato, compacto }: { meses: s
 }
 
 export function Reportes() {
-  const { esGestor } = useSesion();
+  const { esGestor, esSuper } = useSesion();
   const [meses, setMeses] = useState(6);
   const [s, setS] = useState<Series | null>(null);
   useEffect(() => { setS(null); api.get<Series>('/reportes/series', { meses }).then(setS); }, [meses]);
@@ -83,7 +83,7 @@ export function Reportes() {
             <div className="indicador"><span className="indicador-etiqueta">Mejor mes</span><strong className="indicador-valor">{tabla.length ? MES([...tabla].sort((a, b) => b.cobrado - a.cobrado)[0].mes) : '—'}</strong></div>
           </div>
           <Tarjeta titulo="Cobros por producto"><BarrasApiladas meses={s.meses} puntos={s.por_producto} moneda={s.moneda_base} /></Tarjeta>
-          {esGestor && <Tarjeta titulo="Cobros por vendedor"><BarrasApiladas meses={s.meses} puntos={s.por_vendedor} moneda={s.moneda_base} /></Tarjeta>}
+          {esSuper && <Tarjeta titulo="Cobros por vendedor"><BarrasApiladas meses={s.meses} puntos={s.por_vendedor} moneda={s.moneda_base} /></Tarjeta>}
           <div className="grid-2">
             <Tarjeta titulo="Licencias activadas por mes">
               <BarrasApiladas meses={s.meses} puntos={s.licencias_nuevas.map((l) => ({ mes: l.mes, serie: 'Licencias', total: l.total }))} formato={(n) => String(Math.round(n))} compacto />

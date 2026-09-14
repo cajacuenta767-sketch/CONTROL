@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { api, copiar, dinero, fecha, hoy, inicioMes, plantilla } from '../api';
+import { api, copiar, dinero, fecha, hoy, inicioMes, plantilla, recordar } from '../api';
 import { useAvisar } from '../componentes/toast';
 import { useSesion } from '../sesion';
 import { useAjustes } from '../ajustes';
@@ -22,6 +22,7 @@ export function Panel() {
   const avisar = useAvisar();
   const ajustes = useAjustes();
   const [r, setR] = useState<Resumen | null>(null);
+  const [guiaVista, setGuiaVista] = useState(() => recordar.leer('guia_vista') === '1');
   const nav = useNavigate();
   useEffect(() => { api.get<Resumen>('/reportes/resumen').then(setR); }, []);
   if (!r) return <Cargando />;
@@ -45,6 +46,12 @@ export function Panel() {
         </div>
       </header>
 
+      {!guiaVista && (
+        <div className="banner-guia">
+          <span><strong>{esGestor ? 'Bienvenido al panel.' : `Bienvenido, ${usuario!.nombre.split(' ')[0]}.`}</strong> En dos minutos entiendes cómo se vende, qué gana cada uno y qué puedes hacer con tu rol.</span>
+          <span className="fila" style={{ gap: 8 }}><Link to="/guia" className="btn chico">Ver la guía</Link><Link to="/precios" className="btn secundario chico">Precios y simulador</Link><button className="btn-texto" aria-label="Ocultar" onClick={() => { recordar.guardar('guia_vista', '1'); setGuiaVista(true); }}>✕</button></span>
+        </div>
+      )}
       {hayAlertas && (
         <Aviso tipo="alerta">
           <strong>Atención: </strong>

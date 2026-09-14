@@ -16,7 +16,9 @@ const SECCIONES: { titulo: string; descripcion?: string; campos: CampoDef[] }[] 
   { titulo: 'Precios y monedas', campos: [
     { clave: 'moneda_base', etiqueta: 'Moneda base', ayuda: 'Los precios de lista y las comisiones se expresan en esta moneda.' },
     { clave: 'tipos_cambio', etiqueta: 'Tipos de cambio', ayuda: 'JSON: unidades de cada moneda por 1 de la base. Ej.: {"USD":1,"PEN":3.75,"BOB":6.9}', tipo: 'textarea' },
-    { clave: 'tope_descuento_pct', etiqueta: 'Descuento máximo para vendedores y admins (%)', tipo: 'number' },
+    { clave: 'tope_descuento_pct', etiqueta: 'Descuento máximo que puede dar un vendedor (%)', ayuda: 'Por encima de esto la venta se rechaza; solo tú puedes superarlo.', tipo: 'number' },
+    { clave: 'tope_descuento_admin_pct', etiqueta: 'Descuento máximo que puede dar un admin (%)', tipo: 'number' },
+    { clave: 'niveles_precio', etiqueta: 'Niveles de precio sugeridos', ayuda: 'JSON con nombre, mensual, anual y vitalicio. Aparecen como botones en Lista de precios › Editar.', tipo: 'textarea' },
   ] },
   { titulo: 'Comisiones y licencias', campos: [
     { clave: 'comision_renovacion_pct', etiqueta: 'Comisión por renovación después del primer año (%)', tipo: 'number' },

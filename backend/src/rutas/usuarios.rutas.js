@@ -22,7 +22,7 @@ const esquemaCrear = z.object({
   marca_nombre: z.string().max(80).nullable().optional(),
 });
 
-rutasUsuarios.get('/', requerirRol('superadmin', 'admin'), asincrono((req, res) => res.json(listarUsuarios())));
+rutasUsuarios.get('/', requerirRol('superadmin', 'admin'), asincrono((req, res) => res.json(listarUsuarios({ conDinero: req.usuario.rol === 'superadmin' }))));
 rutasUsuarios.get('/:id', requerirRol('superadmin', 'admin'), asincrono((req, res) => res.json(obtenerUsuario(Number(req.params.id)))));
 rutasUsuarios.post('/', requerirRol('superadmin'), validar(esquemaCrear), asincrono((req, res) => res.status(201).json(crearUsuario(req.datos, req.usuario))));
 rutasUsuarios.patch(

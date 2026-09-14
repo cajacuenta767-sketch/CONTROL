@@ -21,7 +21,7 @@ export function Comisiones() {
     setLiquidaciones(await api.get<any[]>('/liquidaciones', { vendedor_id: vendedorId || undefined }));
   }, [vendedorId, estado]);
   useEffect(() => { cargar(); }, [cargar]);
-  useEffect(() => { if (esGestor) api.get<any[]>('/usuarios').then((u) => setEquipo(u.filter((x) => x.rol !== 'superadmin'))); }, [esGestor]);
+  useEffect(() => { if (esSuper) api.get<any[]>('/usuarios').then((u) => setEquipo(u.filter((x) => x.rol !== 'superadmin'))); }, [esSuper]);
 
   const pendiente = comisiones.filter((c) => c.estado === 'devengada').reduce((s, c) => s + c.monto, 0);
   const liquidada = comisiones.filter((c) => c.estado === 'liquidada').reduce((s, c) => s + c.monto, 0);
@@ -29,7 +29,7 @@ export function Comisiones() {
   return (
     <>
       <header>
-        <div><h1>Comisiones</h1><p>Se devengan con cada cobro confirmado y se pagan por liquidación (semanal o quincenal).</p></div>
+        <div><h1>{esSuper ? 'Comisiones' : 'Mis comisiones'}</h1><p>Se devengan con cada cobro confirmado y se pagan por liquidación (semanal o quincenal).{!esSuper && ' Solo ves las tuyas.'}</p></div>
         <div className="fila">
           <ExportarCsv nombre="comisiones" filas={comisiones.map((c) => ({ fecha: c.creado_en, vendedor: c.vendedor_nombre, venta: c.venta_numero, cliente: c.cliente_nombre, producto: c.producto_nombre, base: c.base, pct: c.pct, monto: c.monto, estado: c.estado, liquidacion: c.liquidacion_id }))} />
           {esSuper && <button className="btn" onClick={() => setNueva(true)}>+ Liquidar</button>}
@@ -40,14 +40,14 @@ export function Comisiones() {
         <Indicador etiqueta="Ya liquidado" valor={dinero(liquidada)} tono="ok" />
       </div>
       <div className="filtros">
-        {esGestor && <select value={vendedorId} onChange={(e) => setVendedorId(e.target.value)}><option value="">Todos</option>{equipo.map((u) => <option key={u.id} value={u.id}>{u.nombre}</option>)}</select>}
+        {esSuper && <select value={vendedorId} onChange={(e) => setVendedorId(e.target.value)}><option value="">Todos</option>{equipo.map((u) => <option key={u.id} value={u.id}>{u.nombre}</option>)}</select>}
         <select value={estado} onChange={(e) => setEstado(e.target.value)}><option value="">Todos los estados</option><option value="devengada">Devengada</option><option value="liquidada">Liquidada</option><option value="revertida">Revertida</option></select>
       </div>
       <div className="grid-2">
         <Tarjeta titulo="Liquidaciones">
           <Tabla filas={liquidaciones} clave={(l) => l.id} vacio="Sin liquidaciones todavía" onFila={(l) => api.get<any>(`/liquidaciones/${l.id}`).then(setDetalle)} columnas={[
             { titulo: 'N.º', celda: (l) => `#${l.id}` },
-            ...(esGestor ? [{ titulo: 'Vendedor', celda: (l: any) => l.vendedor_nombre }] : []),
+            ...(esSuper ? [{ titulo: 'Vendedor', celda: (l: any) => l.vendedor_nombre }] : []),
             { titulo: 'Periodo', celda: (l) => `${fecha(l.desde)} – ${fecha(l.hasta)}` },
             { titulo: 'Total', celda: (l) => dinero(l.total), alinear: 'derecha' },
             { titulo: 'Estado', celda: (l) => <><Estado valor={l.estado === 'pagada' ? 'pagada' : 'pendiente'} />{l.pagada_en && <span className="suave pequeno"> {fecha(l.pagada_en)}</span>}</> },
@@ -57,7 +57,7 @@ export function Comisiones() {
         <Tarjeta titulo="Detalle de comisiones">
           <Tabla filas={comisiones} clave={(c) => c.id} vacio="Sin comisiones todavía" onFila={(c) => nav(`/ventas/${c.venta_id}`)} columnas={[
             { titulo: 'Fecha', celda: (c) => fecha(c.creado_en), orden: (c) => c.creado_en },
-            ...(esGestor ? [{ titulo: 'Vendedor', celda: (c: any) => c.vendedor_nombre, orden: (c: any) => c.vendedor_nombre }] : []),
+            ...(esSuper ? [{ titulo: 'Vendedor', celda: (c: any) => c.vendedor_nombre, orden: (c: any) => c.vendedor_nombre }] : []),
             { titulo: 'Venta', celda: (c) => <>{c.venta_numero}<br /><span className="suave pequeno">{c.cliente_nombre} · {c.producto_nombre}</span></> },
             { titulo: 'Base', celda: (c) => dinero(c.base), alinear: 'derecha', orden: (c) => c.base },
             { titulo: '%', celda: (c) => `${c.pct}%`, alinear: 'derecha' },

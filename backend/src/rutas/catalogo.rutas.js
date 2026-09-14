@@ -3,12 +3,13 @@ import { z } from 'zod';
 import { validar } from '../middleware/validar.js';
 import { requerirAuth, requerirRol } from '../middleware/auth.js';
 import { asincrono } from '../middleware/errores.js';
-import { listarProductos, obtenerProducto, crearProducto, actualizarProducto, crearPlan, actualizarPlan } from '../servicios/catalogo.js';
+import { listarProductos, obtenerProducto, crearProducto, actualizarProducto, crearPlan, actualizarPlan, actualizarPrecios, ajustarPreciosPorcentaje, historialPrecios, nivelesPrecio } from '../servicios/catalogo.js';
 
 export const rutasProductos = Router();
 rutasProductos.use(requerirAuth);
 
 rutasProductos.get('/', asincrono((req, res) => res.json(listarProductos({ incluirInactivos: req.query.todos === '1' }))));
+rutasProductos.get('/niveles-precio', asincrono((req, res) => res.json(nivelesPrecio())));
 rutasProductos.get('/:id', asincrono((req, res) => res.json(obtenerProducto(Number(req.params.id)))));
 rutasProductos.post(
   '/',
@@ -42,4 +43,15 @@ rutasPlanes.patch(
   '/:id',
   validar(esquemaPlan.partial().omit({ producto_id: true, codigo: true, tipo: true }).extend({ activo: z.boolean().optional() })),
   asincrono((req, res) => res.json(actualizarPlan(Number(req.params.id), req.datos, req.usuario)))
+);
+rutasPlanes.get('/historial-precios', asincrono((req, res) => res.json(historialPrecios({ plan_id: req.query.plan_id ? Number(req.query.plan_id) : undefined }))));
+rutasPlanes.post(
+  '/precios',
+  validar(z.object({ cambios: z.array(z.object({ plan_id: z.number().int(), precio: z.number().min(0) })).min(1).max(500), motivo: z.string().max(200).optional() })),
+  asincrono((req, res) => res.json(actualizarPrecios(req.datos.cambios, req.datos.motivo, req.usuario)))
+);
+rutasPlanes.post(
+  '/precios/porcentaje',
+  validar(z.object({ porcentaje: z.number().min(-90).max(500), tipos: z.array(z.enum(['mensual', 'anual', 'vitalicio', 'sucursal_extra', 'mantenimiento'])).optional(), producto_id: z.number().int().optional(), motivo: z.string().max(200).optional() })),
+  asincrono((req, res) => res.json(ajustarPreciosPorcentaje(req.datos, req.datos.motivo, req.usuario)))
 );

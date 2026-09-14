@@ -25,6 +25,8 @@ import { Reportes } from './paginas/Reportes';
 import { Tickets, TicketDetalle } from './paginas/Tickets';
 import { SeguridadCuenta } from './paginas/Seguridad';
 import { PortalAcceso, PortalInicio } from './paginas/Portal';
+import { Precios } from './paginas/Precios';
+import { Guia } from './paginas/Guia';
 
 const I = {
   panel: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="5" rx="1.5"/><rect x="13" y="10" width="8" height="11" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/></svg>,
@@ -37,13 +39,15 @@ const I = {
   equipo: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2M3 12h18"/></svg>,
   reportes: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>,
   tickets: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg>,
+  precios: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 12l-8 8-9-9V4h7z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg>,
+  guia: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 015 0c0 1.5-2.5 2-2.5 3.5M12 17h.01"/></svg>,
   auditoria: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3h8l4 4v14H4V3z"/><path d="M8 12h8M8 16h5"/></svg>,
   ajustes: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>,
 };
 
 const TITULOS: [string, string][] = [
   ['/ventas/nueva', 'Nueva venta'], ['/ventas', 'Ventas'], ['/licencias', 'Licencias'], ['/clientes', 'Clientes'], ['/caja', 'Caja'],
-  ['/comisiones', 'Comisiones'], ['/reportes', 'Reportes'], ['/tickets', 'Tickets'], ['/seguridad', 'Mi seguridad'], ['/portal', 'Portal del cliente'], ['/catalogo', 'Catálogo'], ['/equipo', 'Equipo'], ['/auditoria', 'Auditoría'], ['/ajustes', 'Ajustes'], ['/login', 'Entrar'], ['/comprar', 'Comprar'], ['/pagar', 'Pagar'], ['/pedido', 'Mi pedido'],
+  ['/comisiones', 'Comisiones'], ['/reportes', 'Reportes'], ['/tickets', 'Tickets'], ['/precios', 'Lista de precios'], ['/guia', 'Cómo funciona'], ['/seguridad', 'Mi seguridad'], ['/portal', 'Portal del cliente'], ['/catalogo', 'Catálogo'], ['/equipo', 'Equipo'], ['/auditoria', 'Auditoría'], ['/ajustes', 'Ajustes'], ['/login', 'Entrar'], ['/comprar', 'Comprar'], ['/pagar', 'Pagar'], ['/pedido', 'Mi pedido'],
 ];
 
 export function App() {
@@ -93,8 +97,9 @@ export function App() {
 
   const grupos: { titulo?: string; enlaces: { a: string; t: string; i: keyof typeof I }[] }[] = [
     { enlaces: [{ a: '/', t: 'Panel', i: 'panel' }, { a: '/ventas', t: 'Ventas', i: 'ventas' }, { a: '/licencias', t: 'Licencias', i: 'licencias' }, { a: '/clientes', t: 'Clientes', i: 'clientes' }, { a: '/tickets', t: 'Soporte', i: 'tickets' }] },
-    { titulo: 'Dinero', enlaces: [{ a: '/caja', t: 'Caja', i: 'caja' }, { a: '/comisiones', t: 'Comisiones', i: 'comisiones' }, { a: '/reportes', t: 'Reportes', i: 'reportes' }] },
-    ...(esGestor ? [{ titulo: 'Administración', enlaces: [{ a: '/catalogo', t: 'Catálogo', i: 'catalogo' as const }, { a: '/equipo', t: 'Equipo', i: 'equipo' as const }, { a: '/auditoria', t: 'Auditoría', i: 'auditoria' as const }, ...(esSuper ? [{ a: '/ajustes', t: 'Ajustes', i: 'ajustes' as const }] : [])] }] : []),
+    { titulo: 'Dinero', enlaces: [{ a: '/precios', t: 'Lista de precios', i: 'precios' }, { a: '/caja', t: 'Caja', i: 'caja' }, { a: '/comisiones', t: esSuper ? 'Comisiones' : 'Mis comisiones', i: 'comisiones' }, { a: '/reportes', t: 'Reportes', i: 'reportes' }] },
+    ...(esGestor ? [{ titulo: esSuper ? 'Dueño' : 'Administración', enlaces: [...(esSuper ? [{ a: '/catalogo', t: 'Catálogo', i: 'catalogo' as const }] : []), { a: '/equipo', t: 'Equipo', i: 'equipo' as const }, ...(esSuper ? [{ a: '/auditoria', t: 'Auditoría', i: 'auditoria' as const }, { a: '/ajustes', t: 'Ajustes', i: 'ajustes' as const }] : [])] }] : []),
+    { titulo: 'Ayuda', enlaces: [{ a: '/guia', t: 'Cómo funciona', i: 'guia' }] },
   ];
   const rolTexto = usuario.rol === 'superadmin' ? 'Superadministrador' : usuario.rol === 'admin' ? 'Administrador' : usuario.rol === 'revendedor' ? `Revendedor · cupo ${usuario.cupo_licencias ?? 0}` : `Vendedor · ${usuario.comision_pct}% comisión`;
 
@@ -143,9 +148,11 @@ export function App() {
             <Route path="/tickets" element={<Tickets />} />
             <Route path="/tickets/:id" element={<TicketDetalle />} />
             <Route path="/seguridad" element={<><header><div><h1>Mi seguridad</h1><p>Contraseña, verificación en dos pasos y sesiones abiertas.</p></div></header><div className="grid-2"><div><SeguridadCuenta /></div></div></>} />
-            {esGestor && <Route path="/catalogo" element={<Catalogo />} />}
+            <Route path="/precios" element={<Precios />} />
+            <Route path="/guia" element={<Guia />} />
+            {esSuper && <Route path="/catalogo" element={<Catalogo />} />}
             {esGestor && <Route path="/equipo" element={<Equipo />} />}
-            {esGestor && <Route path="/auditoria" element={<Auditoria />} />}
+            {esSuper && <Route path="/auditoria" element={<Auditoria />} />}
             {esSuper && <Route path="/ajustes" element={<Ajustes />} />}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

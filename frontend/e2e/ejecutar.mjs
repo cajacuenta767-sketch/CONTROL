@@ -127,6 +127,46 @@ try {
     await pagina.keyboard.press('Escape');
     await pagina.waitForSelector('table[aria-label="Códigos de emergencia"] tbody tr');
   });
+  await paso('el dueño edita un precio y el vendedor lo ve en su lista y en la venta', async () => {
+    await pagina.goto(`${base}/precios`);
+    await pagina.waitForSelector('table[aria-label="Lista de precios"] tbody tr');
+    await pagina.click('button:has-text("Editar precios")');
+    const celda = pagina.locator('input[aria-label="BARBER-PRO Mensual"]');
+    await celda.fill('17');
+    await pagina.fill('input[placeholder="Motivo (opcional)"]', 'Prueba e2e');
+    await pagina.click('button:has-text("Guardar cambios")');
+    await pagina.waitForSelector('.toast');
+    await pagina.waitForSelector('table[aria-label="Lista de precios"] td:has-text("17,00")');
+    await pagina.click('button:has-text("Historial")');
+    await pagina.waitForSelector('[role=dialog] td:has-text("Prueba e2e")');
+    await pagina.keyboard.press('Escape');
+    // el vendedor
+    await pagina.click('nav >> text=Cerrar sesión');
+    await entrar('carlos@agencia.test');
+    await pagina.goto(`${base}/precios`);
+    await pagina.waitForSelector('table[aria-label="Lista de precios"] td:has-text("17,00")');
+    if (await pagina.locator('button:has-text("Editar precios")').count()) throw new Error('el vendedor no debe poder editar');
+    await pagina.waitForSelector('text=Simulador de venta');
+    await pagina.goto(`${base}/ventas/nueva`);
+    await pagina.selectOption('select >> nth=1', { label: 'BARBER-PRO' });
+    const texto = await pagina.textContent('form');
+    if (!texto?.includes('17,00')) throw new Error('el precio nuevo no aparece en la venta');
+  });
+  await paso('el admin no ve lo del dueño: catálogo, auditoría ni comisiones ajenas', async () => {
+    await pagina.click('nav >> text=Cerrar sesión');
+    await entrar('admin@agencia.test');
+    for (const t of ['Catálogo', 'Auditoría', 'Ajustes']) if (await pagina.locator(`nav a:has-text("${t}")`).count()) throw new Error(`${t} visible para admin`);
+    await pagina.goto(`${base}/equipo`);
+    await pagina.waitForSelector('table');
+    const cab = await pagina.textContent('table thead');
+    if (/Comisión pendiente|Vendido/.test(cab || '')) throw new Error('el admin ve columnas de dinero');
+    await pagina.goto(`${base}/auditoria`);
+    await pagina.waitForURL(`${base}/`);
+    await pagina.goto(`${base}/guia`);
+    await pagina.waitForSelector('table[aria-label="Permisos por rol"] th.guia-yo:has-text("Admin")');
+    await pagina.click('nav >> text=Cerrar sesión');
+    await entrar('dueno@agencia.test');
+  });
   await paso('página de tickets del panel', async () => {
     await pagina.goto(`${base}/tickets`);
     await pagina.waitForSelector('table[aria-label="Tickets"]');
@@ -179,7 +219,7 @@ try {
   if (process.env.E2E_CAPTURAS) {
     const { mkdirSync } = await import('node:fs');
     mkdirSync(process.env.E2E_CAPTURAS, { recursive: true });
-    for (const [ruta, nombre] of [['/reportes', 'reportes'], ['/tickets', 'tickets'], ['/clientes/1', 'cliente-historial']]) {
+    for (const [ruta, nombre] of [['/reportes', 'reportes'], ['/tickets', 'tickets'], ['/clientes/1', 'cliente-historial'], ['/precios', 'precios'], ['/guia', 'guia']]) {
       await pagina.goto(`${base}${ruta}`); await pagina.waitForTimeout(600);
       await pagina.screenshot({ path: `${process.env.E2E_CAPTURAS}/${nombre}.png`, fullPage: true });
     }

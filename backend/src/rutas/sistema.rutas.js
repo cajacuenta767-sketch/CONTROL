@@ -15,7 +15,7 @@ rutasReportes.get('/series', asincrono((req, res) => res.json(series(req.usuario
 rutasReportes.get('/buscar', asincrono((req, res) => res.json(buscar(req.usuario, req.query.q))));
 
 export const rutasAuditoria = Router();
-rutasAuditoria.use(requerirAuth, requerirRol('superadmin', 'admin'));
+rutasAuditoria.use(requerirAuth, requerirRol('superadmin'));
 rutasAuditoria.get('/', asincrono((req, res) => res.json(listarAuditoria({
   pagina: Number(req.query.pagina || 1), porPagina: Math.min(200, Number(req.query.por_pagina || 50)),
   accion: req.query.accion, usuarioId: req.query.usuario_id ? Number(req.query.usuario_id) : undefined, entidad: req.query.entidad,
@@ -59,7 +59,7 @@ rutasAjustes.patch(
 rutasAjustes.post('/probar-smtp', requerirRol('superadmin'), validar(z.object({ para: z.string().email() })), asincrono(async (req, res) => res.json(await probarSmtp(req.datos.para))));
 
 export const rutasCorreos = Router();
-rutasCorreos.use(requerirAuth, requerirRol('superadmin', 'admin'));
+rutasCorreos.use(requerirAuth, requerirRol('superadmin'));
 rutasCorreos.get('/', asincrono((req, res) => res.json(listarCorreos({ pagina: Number(req.query.pagina || 1) }))));
 rutasCorreos.get('/:id', asincrono((req, res) => { const c = obtenerCorreo(Number(req.params.id)); if (!c) throw new ErrorHttp(404, 'Correo no encontrado'); res.json(c); }));
 
