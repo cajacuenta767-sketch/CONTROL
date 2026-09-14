@@ -28,18 +28,24 @@ const superadmin = crearUsuario({
 });
 const soloDemo = process.env.SOLO_SUPERADMIN === '1';
 
+// Precios de lista en USD por nivel de negocio (ver docs/05-precios-y-posicionamiento.md):
+// [código, nombre, descripción, mensual, anual, vitalicio, sucursal adicional]
 const catalogo = [
-  ['dental-pro', 'DENTAL-PRO (OdontoSuite)', 'Gestión de clínicas dentales', 79, 790, 1490, 390],
-  ['barber-pro', 'BARBER-PRO', 'Gestión de barberías', 29, 290, 590, 190],
-  ['farmasys', 'FarmaSys', 'Gestión integral de farmacias', 59, 590, 1190, 350],
-  ['repara-pro', 'Repara-Pro (Taller)', 'Talleres de reparación de celulares', 39, 390, 790, 250],
-  ['gym-pro', 'GYM-PRO', 'Gestión de gimnasios', 49, 490, 990, 290],
-  ['supero-pos', 'Supero POS', 'Punto de venta de escritorio', 39, 390, 790, 250],
-  ['sencillo', 'Sencillo (Kiosco.PE)', 'Bodegas: ventas, stock y fiados', 9, 90, 190, 60],
-  ['vendly', 'Vendly', 'Tiendas online multi-vendedor', 49, 490, 990, 290],
-  ['habitta', 'Habitta', 'Sistema inmobiliario', 59, 590, 1190, 350],
-  ['reservaflow', 'ReservaFlow', 'Sistema de reservas', 29, 290, 590, 190],
-  ['avendia', 'Avendia 3.0', 'Documentos con IA', 49, 490, 990, 290],
+  // Nivel 1 · Micro (bodegas, kioscos)
+  ['sencillo', 'Sencillo (Kiosco.PE)', 'Bodegas y kioscos: ventas, stock y fiados', 7, 59, 149, 59],
+  // Nivel 2 · Servicios simples
+  ['barber-pro', 'BARBER-PRO', 'Barberías y salones', 15, 129, 299, 119],
+  ['reservaflow', 'ReservaFlow', 'Reservas para spa, canchas y consultorios', 15, 129, 299, 119],
+  ['repara-pro', 'Repara-Pro (Taller)', 'Talleres de reparación de celulares', 15, 129, 299, 119],
+  ['supero-pos', 'Supero POS', 'Punto de venta de escritorio', 15, 129, 299, 119],
+  // Nivel 3 · Negocio establecido
+  ['gym-pro', 'GYM-PRO', 'Gestión de gimnasios', 25, 219, 499, 199],
+  ['vendly', 'Vendly', 'Tiendas online multi-vendedor', 25, 219, 499, 199],
+  ['avendia', 'Avendia 3.0', 'Documentos con IA', 25, 219, 499, 199],
+  // Nivel 4 · Profesional regulado
+  ['habitta', 'Habitta', 'Sistema inmobiliario', 39, 349, 790, 319],
+  ['farmasys', 'FarmaSys', 'Gestión integral de farmacias', 39, 349, 790, 319],
+  ['dental-pro', 'DENTAL-PRO (OdontoSuite)', 'Gestión de clínicas dentales', 39, 349, 790, 319],
 ];
 
 const planesPorProducto = {};

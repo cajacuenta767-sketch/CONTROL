@@ -28,7 +28,8 @@ ReservaFlow, Avendia, BARBER-PRO…) desde un solo panel.
 La especificación completa está en [`docs/01-especificacion.md`](docs/01-especificacion.md),
 la guía para conectar cada producto en [`docs/02-integracion-productos.md`](docs/02-integracion-productos.md)
 la revisión y el estado de cada mejora en [`docs/03-revision-y-mejoras.md`](docs/03-revision-y-mejoras.md)
-y el despliegue en [`docs/04-despliegue.md`](docs/04-despliegue.md).
+el despliegue en [`docs/04-despliegue.md`](docs/04-despliegue.md) y la lista de precios por tipo de
+negocio en [`docs/05-precios-y-posicionamiento.md`](docs/05-precios-y-posicionamiento.md).
 
 ## Puesta en marcha
 
