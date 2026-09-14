@@ -1,0 +1,35 @@
+services:
+  control:
+    build: .
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PUERTO: 4100
+      BASE_DATOS: /datos/control.db
+      # Obligatorio en producción: genera uno con `openssl rand -base64 48`
+      JWT_SECRETO: ${JWT_SECRETO:?define JWT_SECRETO en .env}
+      ORIGENES: ${ORIGENES:-https://control.tuagencia.com}
+    volumes:
+      - control_datos:/datos
+    expose:
+      - "4100"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMINIO: ${DOMINIO:-control.tuagencia.com}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_datos:/data
+      - caddy_config:/config
+    depends_on:
+      - control
+
+volumes:
+  control_datos:
+  caddy_datos:
+  caddy_config:

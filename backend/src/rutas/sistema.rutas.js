@@ -64,3 +64,17 @@ rutasCorreos.get('/:id', asincrono((req, res) => { const c = obtenerCorreo(Numbe
 export const rutasErrores = Router();
 rutasErrores.use(requerirAuth, requerirRol('superadmin'));
 rutasErrores.get('/', asincrono((req, res) => res.json(obtenerDb().prepare('SELECT * FROM errores ORDER BY id DESC LIMIT 200').all())));
+
+import { ejecutarTareas, estadoTareas, crearRespaldo, listarRespaldos, rutaRespaldo } from '../servicios/tareas.js';
+export const rutasSistema = Router();
+rutasSistema.use(requerirAuth, requerirRol('superadmin'));
+rutasSistema.get('/tareas', asincrono((req, res) => res.json(estadoTareas())));
+rutasSistema.post('/tareas/ejecutar', asincrono(async (req, res) => { const r = await ejecutarTareas({ forzarCaja: req.body?.forzar_caja === true }); auditar({ usuarioId: req.usuario.id, accion: 'tareas.ejecutar', detalle: r }); res.json(r); }));
+rutasSistema.get('/respaldos', asincrono((req, res) => res.json(listarRespaldos())));
+rutasSistema.post('/respaldos', asincrono((req, res) => { const r = crearRespaldo({ manual: true }); auditar({ usuarioId: req.usuario.id, accion: 'respaldo.crear', detalle: r }); res.status(201).json(r); }));
+rutasSistema.get('/respaldos/:nombre', asincrono((req, res) => {
+  const ruta = rutaRespaldo(req.params.nombre);
+  if (!ruta) throw new ErrorHttp(404, 'Respaldo no encontrado');
+  auditar({ usuarioId: req.usuario.id, accion: 'respaldo.descargar', detalle: { nombre: req.params.nombre } });
+  res.download(ruta);
+}));

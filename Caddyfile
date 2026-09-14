@@ -1,0 +1,6 @@
+{$DOMINIO} {
+	encode zstd gzip
+	# Cabeceras que Helmet no puede poner desde detrás del proxy
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	reverse_proxy control:4100
+}

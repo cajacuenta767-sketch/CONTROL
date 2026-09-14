@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, fecha } from '../api';
+import { api, fecha, sesion } from '../api';
 import { invalidarAjustes } from '../ajustes';
 import { Aviso, BotonAccion, Campo, Estado, Formulario, Tabla, Tarjeta } from '../componentes/ui';
 import { SeguridadCuenta } from './Seguridad';
@@ -63,7 +63,21 @@ export function Ajustes() {
   const [correoPrueba, setCorreoPrueba] = useState('');
   const [correos, setCorreos] = useState<any[]>([]);
   const [seccion, setSeccion] = useState(0);
+  const [tareas, setTareas] = useState<any | null>(null);
+  const [respaldos, setRespaldos] = useState<any[]>([]);
+  const [errores, setErrores] = useState<any[]>([]);
   const cargarCorreos = () => api.get<any>('/correos').then((r) => setCorreos(r.filas)).catch(() => null);
+  const cargarSistema = async () => {
+    setTareas(await api.get<any>('/sistema/tareas').catch(() => null));
+    setRespaldos(await api.get<any[]>('/sistema/respaldos').catch(() => []));
+    setErrores(await api.get<any[]>('/errores').catch(() => []));
+  };
+  const descargarRespaldo = async (nombre: string) => {
+    const t = sesion.token();
+    const r = await fetch(`/api/v1/sistema/respaldos/${encodeURIComponent(nombre)}`, { headers: t ? { Authorization: `Bearer ${t}` } : {} });
+    const url = URL.createObjectURL(await r.blob());
+    const a = document.createElement('a'); a.href = url; a.download = nombre; a.click(); setTimeout(() => URL.revokeObjectURL(url), 30000);
+  };
   useEffect(() => {
     api.get<Record<string, string>>('/ajustes').then(setV);
     fetch('/api/v1/licencias/clave-publica').then((r) => r.json()).then((r) => setClavePublica(r.clave_publica_base64));
@@ -78,6 +92,7 @@ export function Ajustes() {
         {SECCIONES.map((x, i) => <button key={x.titulo} className={`chip ${i === seccion ? 'activo' : ''}`} onClick={() => setSeccion(i)}>{x.titulo}</button>)}
         <button className={`chip ${seccion === -1 ? 'activo' : ''}`} onClick={() => setSeccion(-1)}>Seguridad de mi cuenta</button>
         <button className={`chip ${seccion === -2 ? 'activo' : ''}`} onClick={() => setSeccion(-2)}>Correos enviados</button>
+        <button className={`chip ${seccion === -3 ? 'activo' : ''}`} onClick={() => { setSeccion(-3); cargarSistema(); }}>Sistema</button>
       </div>
 
       {seccion >= 0 && (
@@ -130,6 +145,36 @@ export function Ajustes() {
         </div>
       )}
       {seccion === -1 && <div className="grid-2"><div><SeguridadCuenta /></div></div>}
+      {seccion === -3 && (
+        <div className="grid-2">
+          <Tarjeta titulo="Tareas automáticas" acciones={<BotonAccion texto="Ejecutar ahora" className="btn secundario chico" exito="Tareas ejecutadas" onClick={async () => { await api.post('/sistema/tareas/ejecutar', {}); await cargarSistema(); }} />}>
+            <p className="suave pequeno" style={{ marginTop: 0 }}>Cada 10 minutos: estados de licencias, avisos de vencimiento, recordatorio de caja, renovaciones automáticas, respaldo diario y limpieza.</p>
+            {tareas ? (
+              <dl className="definiciones">
+                <dt>Última corrida</dt><dd>{tareas.ultima_ejecucion ? fecha(tareas.ultima_ejecucion, true) : 'Todavía no (arranca al minuto de iniciar)'}</dd>
+                {tareas.ultimo_resultado && Object.entries(tareas.ultimo_resultado).filter(([k]) => k !== 'errores').map(([k, val]) => <><dt key={`k${k}`}>{k.replace(/_/g, ' ')}</dt><dd key={`v${k}`}>{String(val ?? '—')}</dd></>)}
+                <dt>Errores</dt><dd>{tareas.ultimo_resultado?.errores?.length ? <ul style={{ margin: 0, paddingLeft: 16 }}>{tareas.ultimo_resultado.errores.map((e: string, i: number) => <li key={i} className="pequeno">{e}</li>)}</ul> : 'Ninguno'}</dd>
+              </dl>
+            ) : <p className="suave">Cargando…</p>}
+          </Tarjeta>
+          <Tarjeta titulo="Respaldos" acciones={<BotonAccion texto="Crear respaldo ahora" className="btn secundario chico" exito="Respaldo creado" onClick={async () => { await api.post('/sistema/respaldos', {}); await cargarSistema(); }} />}>
+            <p className="suave pequeno" style={{ marginTop: 0 }}>Carpeta: <code className="clave">{tareas?.directorio_respaldos || '…'}</code>. Copia esta carpeta fuera del servidor cada día.</p>
+            <Tabla filas={respaldos} clave={(r) => r.nombre} vacio="Aún no hay respaldos" columnas={[
+              { titulo: 'Archivo', celda: (r) => <span className="pequeno">{r.nombre}</span> },
+              { titulo: 'Fecha', celda: (r) => fecha(r.creado_en, true) },
+              { titulo: 'Tamaño', celda: (r) => `${(r.bytes / 1024).toFixed(0)} KB`, alinear: 'derecha' },
+              { titulo: '', celda: (r) => <BotonAccion texto="Descargar" className="btn secundario chico" onClick={() => descargarRespaldo(r.nombre)} /> },
+            ]} />
+          </Tarjeta>
+          <Tarjeta titulo="Errores del servidor (últimos 200)">
+            <Tabla filas={errores} clave={(e) => e.id} vacio="Sin errores registrados" columnas={[
+              { titulo: 'Fecha', celda: (e) => fecha(e.creado_en, true) },
+              { titulo: 'Ruta', celda: (e) => <code className="clave">{e.ruta}</code> },
+              { titulo: 'Mensaje', celda: (e) => <span className="pequeno">{e.mensaje}</span> },
+            ]} />
+          </Tarjeta>
+        </div>
+      )}
       {seccion === -2 && (
         <Tarjeta titulo="Correos enviados" acciones={<button className="btn secundario chico" onClick={cargarCorreos}>Actualizar</button>}>
           <Tabla filas={correos} clave={(c) => c.id} vacio="Todavía no se ha enviado ningún correo" columnas={[

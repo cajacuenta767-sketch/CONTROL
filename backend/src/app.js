@@ -15,7 +15,7 @@ import { rutasClientes } from './rutas/clientes.rutas.js';
 import { rutasVentas, rutasPagos } from './rutas/ventas.rutas.js';
 import { rutasLicencias, rutasLicenciasPublicas } from './rutas/licencias.rutas.js';
 import { rutasCaja, rutasComisiones, rutasLiquidaciones } from './rutas/caja.rutas.js';
-import { rutasReportes, rutasAuditoria, rutasAjustes, rutasCorreos, rutasErrores } from './rutas/sistema.rutas.js';
+import { rutasReportes, rutasAuditoria, rutasAjustes, rutasCorreos, rutasErrores, rutasSistema } from './rutas/sistema.rutas.js';
 import { rutasPublico, rutasWebhooks } from './rutas/publico.rutas.js';
 
 /** La app se exporta sin escuchar para poder probarla con supertest. */
@@ -57,6 +57,7 @@ export function crearApp() {
   app.use('/api/v1/publico', rutasPublico);
   app.use('/api/v1/correos', rutasCorreos);
   app.use('/api/v1/errores', rutasErrores);
+  app.use('/api/v1/sistema', rutasSistema);
 
   app.use('/api', (req, res) => res.status(404).json({ error: 'Ruta no encontrada' }));
 

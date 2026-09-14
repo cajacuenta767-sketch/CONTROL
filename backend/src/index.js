@@ -2,6 +2,7 @@ import { crearApp } from './app.js';
 import { config } from './config.js';
 import { obtenerDb } from './db.js';
 import { obtenerClaves } from './firmas.js';
+import { iniciarPlanificador } from './servicios/tareas.js';
 
 obtenerDb();
 obtenerClaves();
@@ -11,6 +12,7 @@ if (config.entorno === 'production' && config.jwtSecreto === 'cambia-este-secret
   process.exit(1);
 }
 
+iniciarPlanificador();
 const app = crearApp();
 app.listen(config.puerto, () => {
   console.log(`CONTROL API escuchando en http://localhost:${config.puerto} (${config.entorno})`);
