@@ -28,6 +28,8 @@ export function Precios() {
   const [motivo, setMotivo] = useState('');
   const [porcentaje, setPorcentaje] = useState<string>('');
   const [historial, setHistorial] = useState<any[] | null>(null);
+  const [materialDe, setMaterialDe] = useState<any | null>(null);
+  const leerMaterial = (p: any) => { try { return p.material ? JSON.parse(p.material) : null; } catch { return null; } };
   const cargar = () => Promise.all([api.get<any[]>('/productos', esSuper ? { todos: 1 } : undefined), api.get<Nivel[]>('/productos/niveles-precio')]).then(([p, n]) => { setProductos(p); setNiveles(n); });
   useEffect(() => { cargar(); }, []);
   const moneda = ajustes.moneda_base || 'USD';
@@ -90,7 +92,7 @@ export function Precios() {
             <tbody>
               {visibles.map((p) => (
                 <tr key={p.id} style={{ opacity: p.activo ? 1 : 0.55 }}>
-                  <td><strong>{p.nombre}</strong>{!p.activo && <> <Estado valor="suspendida" /></>}<div className="suave pequeno">{p.descripcion}</div></td>
+                  <td><strong>{p.nombre}</strong>{!p.activo && <> <Estado valor="suspendida" /></>}<div className="suave pequeno">{p.descripcion}</div>{leerMaterial(p) && <button className="btn-texto pequeno" style={{ padding: 0 }} onClick={() => setMaterialDe(p)}>Material de venta →</button>}</td>
                   {TIPOS.map((t) => {
                     const pl = planDe(p, t);
                     if (!pl) return <td key={t} className="derecha suave">—</td>;
@@ -125,6 +127,18 @@ export function Precios() {
       )}
 
       <Simulador productos={visibles.filter((p) => p.activo)} moneda={moneda} cambios={cambios} />
+
+      <Modal titulo={`Cómo vender ${materialDe?.nombre || ''}`} abierto={!!materialDe} cerrar={() => setMaterialDe(null)}>
+        {materialDe && (() => { const m = leerMaterial(materialDe) || {}; return (
+          <>
+            {m.ficha && <p style={{ marginTop: 0 }}>{m.ficha}</p>}
+            {m.beneficios?.length > 0 && <><h3>Lo que resuelve</h3><ul>{m.beneficios.map((b: string) => <li key={b}>{b}</li>)}</ul></>}
+            {m.capturas?.length > 0 && <><h3>Capturas</h3><div className="material-capturas">{m.capturas.map((c: string) => <a key={c} href={c} target="_blank" rel="noreferrer"><img src={c} alt="" /></a>)}</div></>}
+            {m.video_url && <p><a className="btn secundario chico" href={m.video_url} target="_blank" rel="noreferrer">Ver video de demostración</a></p>}
+            {m.objeciones?.length > 0 && <><h3>Si el cliente dice…</h3><dl className="definiciones">{m.objeciones.map((o: any) => <div key={o.p} style={{ display: 'contents' }}><dt>"{o.p}"</dt><dd>{o.r}</dd></div>)}</dl></>}
+          </>
+        ); })()}
+      </Modal>
 
       <Modal titulo="Historial de cambios de precio" abierto={!!historial} cerrar={() => setHistorial(null)}>
         <Tabla filas={historial || []} clave={(h: any) => h.id} vacio="Todavía no cambiaste ningún precio" columnas={[

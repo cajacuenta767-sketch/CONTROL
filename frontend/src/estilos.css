@@ -235,3 +235,23 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--enfoque); b
 .guia-lista li { display: block; line-height: 1.45; }
 .tabla .guia-yo { background: var(--primario-suave); }
 .banner-guia { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; background: var(--info-fondo); color: var(--info); padding: 10px 14px; border-radius: 8px; margin-bottom: 14px; }
+
+/* ---------- Prospectos (kanban) ---------- */
+.tablero-kanban { display: grid; grid-template-columns: repeat(6, minmax(180px, 1fr)); gap: 10px; overflow-x: auto; padding-bottom: 8px; }
+.kanban-col { background: var(--neutro-fondo); border-radius: var(--radio); padding: 10px; min-height: 160px; }
+.kanban-col h3 { font-size: 13px; margin-bottom: 8px; }
+.kanban-tarjeta { background: var(--panel); border: 1px solid var(--borde); border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; cursor: pointer; }
+.kanban-tarjeta:hover { border-color: var(--primario); } .kanban-tarjeta.vencida { border-left: 3px solid var(--aviso); }
+@media (max-width: 900px) { .tablero-kanban { grid-template-columns: repeat(6, 220px); } }
+
+/* ---------- Tablero del equipo ---------- */
+.ranking { display: grid; gap: 10px; }
+.ranking-fila { display: grid; grid-template-columns: 52px 1fr auto; gap: 14px; align-items: center; background: var(--panel); border: 1px solid var(--borde); border-radius: var(--radio); padding: 12px 16px; }
+.ranking-fila.podio { border-color: #fcd34d; }
+.ranking-puesto { font-size: 28px; text-align: center; }
+.ranking-monto { font-size: 22px; font-weight: 700; text-align: right; }
+.ticker { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+.tablero-pantalla { position: fixed; inset: 0; z-index: 100; background: var(--fondo); padding: 24px 32px; overflow: auto; }
+.tablero-pantalla h1 { font-size: 30px; } .tablero-pantalla .ranking-monto { font-size: 32px; } .tablero-pantalla .ranking-puesto { font-size: 40px; }
+.sin-conexion { background: var(--mal); color: #fff; text-align: center; padding: 6px; font-size: 13px; position: sticky; top: 0; z-index: 45; }
+.material-capturas { display: flex; gap: 8px; flex-wrap: wrap; } .material-capturas img { max-width: 220px; border-radius: 8px; border: 1px solid var(--borde); }

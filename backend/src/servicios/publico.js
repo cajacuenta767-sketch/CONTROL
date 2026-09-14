@@ -7,7 +7,8 @@ import { crearEnlace, proveedoresDisponibles } from './pagos_en_linea.js';
 /** Catálogo público: productos activos con sus planes vendibles (sin demo). */
 export function catalogoPublico() {
   const db = obtenerDb();
-  const productos = db.prepare('SELECT id, codigo, nombre, descripcion, version_actual FROM productos WHERE activo = 1 ORDER BY nombre').all();
+  const productos = db.prepare('SELECT id, codigo, nombre, descripcion, version_actual, material FROM productos WHERE activo = 1 ORDER BY nombre').all()
+    .map((p) => { let m = null; try { m = p.material ? JSON.parse(p.material) : null; } catch { m = null; } return { ...p, material: m ? { ficha: m.ficha, video_url: m.video_url, capturas: m.capturas, beneficios: m.beneficios } : null }; });
   const planes = db.prepare("SELECT id, producto_id, codigo, nombre, tipo, precio, duracion_dias, max_activaciones FROM planes WHERE activo = 1 AND tipo IN ('mensual','anual','vitalicio') ORDER BY precio").all();
   return {
     agencia: ajuste('nombre_agencia', 'CONTROL'), moneda_base: ajuste('moneda_base', 'USD'),

@@ -1,0 +1,20 @@
+{
+  "name": "CONTROL · Panel de la agencia",
+  "short_name": "CONTROL",
+  "description": "Ventas, licencias, cobros y comisiones de la agencia.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "lang": "es",
+  "icons": [
+    { "src": "/icono.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icono-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Nueva venta", "url": "/ventas/nueva" },
+    { "name": "Lista de precios", "url": "/precios" },
+    { "name": "Caja", "url": "/caja" }
+  ]
+}

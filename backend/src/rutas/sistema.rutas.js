@@ -6,7 +6,7 @@ import { asincrono, ErrorHttp } from '../middleware/errores.js';
 import { probarSmtp, listarCorreos, obtenerCorreo } from '../servicios/correo.js';
 import { obtenerDb, guardarAjuste } from '../db.js';
 import { auditar, listarAuditoria } from '../servicios/auditoria.js';
-import { resumen, buscar, series } from '../servicios/reportes.js';
+import { resumen, buscar, series, tablero } from '../servicios/reportes.js';
 import { reporteEncuestas, campanaRenovaciones, generarRenovaciones } from '../servicios/retencion.js';
 
 export const rutasReportes = Router();
@@ -14,6 +14,7 @@ rutasReportes.use(requerirAuth);
 rutasReportes.get('/resumen', asincrono((req, res) => res.json(resumen(req.usuario))));
 rutasReportes.get('/series', asincrono((req, res) => res.json(series(req.usuario, { meses: req.query.meses }))));
 rutasReportes.get('/buscar', asincrono((req, res) => res.json(buscar(req.usuario, req.query.q))));
+rutasReportes.get('/tablero', asincrono((req, res) => res.json(tablero())));
 rutasReportes.get('/encuestas', asincrono((req, res) => res.json(reporteEncuestas(req.usuario))));
 
 export const rutasRenovaciones = Router();

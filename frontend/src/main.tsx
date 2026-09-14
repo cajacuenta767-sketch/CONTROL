@@ -5,6 +5,9 @@ import { App } from './App';
 import { ProveedorSesion } from './sesion';
 import { ProveedorAvisos } from './componentes/toast';
 import './estilos.css';
+import { registrarPwa } from './pwa';
+
+registrarPwa();
 
 ReactDOM.createRoot(document.getElementById('raiz')!).render(
   <React.StrictMode>

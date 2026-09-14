@@ -145,3 +145,25 @@ export function series(usuario, { meses = 6 } = {}) {
   const nuevasLicencias = db.prepare(`SELECT strftime('%Y-%m', l.activa_desde, ?) AS mes, COUNT(*) AS total FROM licencias l JOIN ventas v ON v.id = l.venta_id WHERE l.activa_desde IS NOT NULL AND strftime('%Y-%m', l.activa_desde, ?) >= ? ${filtro} GROUP BY mes`).all(z, z, desdeMes, ...p);
   return { meses: meses_lista, moneda_base: ajuste('moneda_base', 'USD'), por_producto: porProducto, por_vendedor: porVendedor, licencias_nuevas: nuevasLicencias };
 }
+
+/** Tablero del equipo: ranking del mes (ventas pagadas, licencias, demos, meta). Sin comisiones. */
+export function tablero() {
+  const db = obtenerDb();
+  const hoy = hoyLocal();
+  const mes = hoy.slice(0, 7);
+  const z = modZona();
+  const equipo = db.prepare(`SELECT u.id, u.nombre, u.rol,
+      (SELECT COUNT(*) FROM ventas v WHERE v.vendedor_id = u.id AND strftime('%Y-%m', v.creado_en, ?) = ? AND v.estado != 'anulada') AS ventas_mes,
+      (SELECT COALESCE(SUM(COALESCE(pg.monto_base, pg.monto)),0) FROM pagos pg JOIN ventas v ON v.id = pg.venta_id WHERE v.vendedor_id = u.id AND pg.estado = 'confirmado' AND strftime('%Y-%m', pg.confirmado_en, ?) = ?) AS cobrado_mes,
+      (SELECT COUNT(*) FROM licencias l JOIN planes pl ON pl.id = l.plan_id WHERE l.vendedor_id = u.id AND pl.tipo != 'demo' AND strftime('%Y-%m', l.creado_en, ?) = ?) AS licencias_mes,
+      (SELECT COUNT(*) FROM licencias l JOIN planes pl ON pl.id = l.plan_id WHERE l.emitida_por = u.id AND pl.tipo = 'demo' AND strftime('%Y-%m', l.creado_en, ?) = ?) AS demos_mes,
+      (SELECT COUNT(*) FROM ventas v WHERE v.vendedor_id = u.id AND date(v.creado_en, ?) = ? AND v.estado != 'anulada') AS ventas_hoy,
+      (SELECT COUNT(*) FROM prospectos p WHERE p.vendedor_id = u.id AND p.etapa NOT IN ('ganado','perdido')) AS prospectos_abiertos,
+      (SELECT m.objetivo_monto FROM metas m WHERE m.usuario_id = u.id AND m.mes = ?) AS meta
+    FROM usuarios u WHERE u.activo = 1 AND u.rol IN ('vendedor','admin','revendedor','superadmin') ORDER BY cobrado_mes DESC, ventas_mes DESC`).all(z, mes, z, mes, z, mes, z, mes, z, hoy, mes)
+    .filter((u) => u.rol !== 'superadmin' || u.ventas_mes > 0);
+  const totales = { cobrado_mes: equipo.reduce((a, u) => a + u.cobrado_mes, 0), ventas_mes: equipo.reduce((a, u) => a + u.ventas_mes, 0), licencias_mes: equipo.reduce((a, u) => a + u.licencias_mes, 0), ventas_hoy: equipo.reduce((a, u) => a + u.ventas_hoy, 0) };
+  const ultimas = db.prepare(`SELECT v.numero, v.total_base, v.creado_en, u.nombre AS vendedor, c.nombre AS cliente, pr.nombre AS producto, pl.tipo AS plan_tipo FROM ventas v JOIN usuarios u ON u.id = v.vendedor_id JOIN clientes c ON c.id = v.cliente_id JOIN productos pr ON pr.id = v.producto_id JOIN planes pl ON pl.id = v.plan_id WHERE v.estado != 'anulada' AND pl.tipo != 'demo' ORDER BY v.id DESC LIMIT 8`).all();
+  const diasMes = new Date(Number(mes.slice(0, 4)), Number(mes.slice(5, 7)), 0).getDate();
+  return { mes, hoy, dia_del_mes: Number(hoy.slice(8, 10)), dias_mes: diasMes, moneda_base: ajuste('moneda_base', 'USD'), equipo: equipo.map((u, i) => ({ ...u, puesto: i + 1, cobrado_mes: Math.round(u.cobrado_mes * 100) / 100 })), totales, ultimas_ventas: ultimas };
+}

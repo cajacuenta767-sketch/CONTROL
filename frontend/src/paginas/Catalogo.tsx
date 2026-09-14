@@ -13,6 +13,8 @@ export function Catalogo() {
   const [planPara, setPlanPara] = useState<any | null>(null);
   const [nplan, setNplan] = useState<any>({ codigo: '', nombre: '', tipo: 'mensual', precio: 0, max_activaciones: 1, comision_pct: '' });
   const [editPlan, setEditPlan] = useState<any | null>(null);
+  const [material, setMaterial] = useState<any | null>(null);
+  const leerMaterial = (p: any) => { try { return p.material ? JSON.parse(p.material) : {}; } catch { return {}; } };
   const cargar = () => api.get<any[]>('/productos', { todos: 1 }).then(setProductos);
   useEffect(() => { cargar(); }, []);
 
@@ -23,6 +25,7 @@ export function Catalogo() {
         <Tarjeta key={p.id} titulo={<>{p.nombre} <code className="clave">{p.codigo}</code>{!p.activo && <Estado valor="suspendida" />}</>}
           acciones={<div className="fila"><span className="suave pequeno">{p.licencias_activas} activas / {p.licencias_total} licencias{p.instalaciones_desactualizadas > 0 && <> · <span className="estado aviso">{p.instalaciones_desactualizadas} desactualizada(s)</span></>}</span>
             {esSuper ? <VersionProducto producto={p} alGuardar={cargar} /> : p.version_actual && <span className="suave pequeno">v{p.version_actual}</span>}
+            {esSuper && <button className="btn secundario chico" onClick={() => { const m = leerMaterial(p); setMaterial({ producto: p, ficha: m.ficha || '', video_url: m.video_url || '', capturas: (m.capturas || []).join('\n'), beneficios: (m.beneficios || []).join('\n'), objeciones: (m.objeciones || []).map((o: any) => `${o.p} => ${o.r}`).join('\n') }); }}>Material de venta</button>}
             {esSuper && <><button className="btn secundario chico" onClick={() => { setPlanPara(p); setNplan({ codigo: '', nombre: '', tipo: 'mensual', precio: 0, max_activaciones: 1, comision_pct: '' }); }}>+ Plan</button>
               <BotonAccion texto={p.activo ? 'Desactivar' : 'Activar'} className="btn secundario chico" exito={p.activo ? 'Producto desactivado' : 'Producto activado'} onClick={async () => { await api.patch(`/productos/${p.id}`, { activo: !p.activo }); await cargar(); }} /></>}</div>}>
           {p.descripcion && <p className="suave" style={{ marginTop: 0 }}>{p.descripcion}</p>}
@@ -38,6 +41,23 @@ export function Catalogo() {
           ]} />
         </Tarjeta>
       ))}
+
+      <Modal titulo={`Material de venta · ${material?.producto?.nombre || ''}`} abierto={!!material} cerrar={() => setMaterial(null)}>
+        {material && (
+          <Formulario textoBoton="Guardar material" cancelar={() => setMaterial(null)} exito="Material guardado" onEnviar={async () => {
+            const lineas = (t: string) => t.split('\n').map((x: string) => x.trim()).filter(Boolean);
+            const m = { ficha: material.ficha, video_url: material.video_url || null, capturas: lineas(material.capturas), beneficios: lineas(material.beneficios), objeciones: lineas(material.objeciones).map((l: string) => { const [p, ...r] = l.split('=>'); return { p: p.trim(), r: r.join('=>').trim() }; }) };
+            await api.patch(`/productos/${material.producto.id}`, { material: JSON.stringify(m) }); setMaterial(null); await cargar();
+          }}>
+            <p className="suave" style={{ marginTop: 0 }}>Lo que necesita un vendedor nuevo para vender en su primera semana. Ficha, beneficios, capturas y video salen también en la página pública de compra; las objeciones son internas.</p>
+            <Campo etiqueta="Ficha (2 o 3 frases que se le dicen al cliente)"><textarea rows={3} value={material.ficha} onChange={(e) => setMaterial({ ...material, ficha: e.target.value })} /></Campo>
+            <Campo etiqueta="Beneficios (uno por línea)"><textarea rows={4} value={material.beneficios} onChange={(e) => setMaterial({ ...material, beneficios: e.target.value })} placeholder="Agenda de citas con recordatorio por WhatsApp&#10;Caja diaria sin cuaderno" /></Campo>
+            <Campo etiqueta="Capturas (URL de imagen, una por línea)"><textarea rows={3} value={material.capturas} onChange={(e) => setMaterial({ ...material, capturas: e.target.value })} /></Campo>
+            <Campo etiqueta="Video de demostración (URL de YouTube o similar)"><input value={material.video_url} onChange={(e) => setMaterial({ ...material, video_url: e.target.value })} /></Campo>
+            <Campo etiqueta="Objeciones frecuentes y respuesta (una por línea, formato: objeción => respuesta)"><textarea rows={4} value={material.objeciones} onChange={(e) => setMaterial({ ...material, objeciones: e.target.value })} placeholder="Es caro => Cuesta menos que una cita perdida al mes" /></Campo>
+          </Formulario>
+        )}
+      </Modal>
 
       <Modal titulo="Nuevo producto" abierto={nuevoProducto} cerrar={() => setNuevoProducto(false)}>
         <Formulario onEnviar={async () => { await api.post('/productos', np); setNuevoProducto(false); setNp({ codigo: '', nombre: '', descripcion: '' }); await cargar(); }} cancelar={() => setNuevoProducto(false)} exito="Producto creado">
