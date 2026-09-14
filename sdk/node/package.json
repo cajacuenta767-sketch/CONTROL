@@ -1,0 +1,9 @@
+{
+  "name": "@control/sdk-licencia",
+  "version": "0.1.0",
+  "description": "Cliente de licencias CONTROL para Node.js (Express, Next.js, NestJS, Electron)",
+  "type": "module",
+  "main": "control-licencia.js",
+  "exports": "./control-licencia.js",
+  "engines": { "node": ">=20" }
+}
