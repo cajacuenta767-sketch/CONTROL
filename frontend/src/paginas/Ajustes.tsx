@@ -85,6 +85,8 @@ const SECCIONES: { titulo: string; descripcion?: string; campos: CampoDef[] }[] 
   { titulo: 'Integraciones', campos: [
     { clave: 'api_key_pedidos', etiqueta: 'API key para pedidos externos (DevMarket)', ayuda: 'Envíala en la cabecera X-Api-Key al llamar a POST /api/v1/publico/pedidos.', tipo: 'password' },
     { clave: 'portal_activo', etiqueta: 'Portal del cliente', tipo: 'select', opciones: [['1', 'Activo'], ['0', 'Desactivado']] },
+    { clave: 'demo_autoservicio', etiqueta: 'Demo autoservicio en la página de compra', ayuda: 'El visitante recibe su clave de prueba al instante (una por correo y producto). Te avisa por alerta.', tipo: 'select', opciones: [['1', 'Activa'], ['0', 'Solo con asesor']] },
+    { clave: 'monitor_url', etiqueta: 'URL de monitoreo externo (opcional)', ayuda: 'Pega aquí el enlace del monitor (UptimeRobot, Better Stack…) que vigila {url}/api/v1/salud, solo como recordatorio.' },
   ] },
 ];
 
@@ -182,7 +184,7 @@ export function Ajustes() {
       {seccion === -3 && (
         <div className="grid-2">
           <Tarjeta titulo="Tareas automáticas" acciones={<BotonAccion texto="Ejecutar ahora" className="btn secundario chico" exito="Tareas ejecutadas" onClick={async () => { await api.post('/sistema/tareas/ejecutar', {}); await cargarSistema(); }} />}>
-            <p className="suave pequeno" style={{ marginTop: 0 }}>Cada 10 minutos: estados de licencias, avisos de vencimiento, recordatorios de cobro, cuotas vencidas, recordatorio de caja, renovaciones automáticas, respaldo diario y limpieza.</p>
+            <p className="suave pequeno" style={{ marginTop: 0 }}>Cada 10 minutos: estados de licencias, avisos de vencimiento, recordatorios de cobro, cuotas vencidas, recordatorio de caja, renovaciones automáticas, respaldo diario y limpieza. El chequeo <code className="clave">/api/v1/salud</code> responde 503 si el planificador se detiene: apúntale un monitor externo.</p>
             {tareas ? (
               <dl className="definiciones">
                 <dt>Última corrida</dt><dd>{tareas.ultima_ejecucion ? fecha(tareas.ultima_ejecucion, true) : 'Todavía no (arranca al minuto de iniciar)'}</dd>

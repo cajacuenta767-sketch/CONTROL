@@ -8,12 +8,14 @@ import { dirname, resolve } from 'node:path';
 import { config } from './config.js';
 import { manejarErrores } from './middleware/errores.js';
 import { middlewareContexto } from './contexto.js';
+import { obtenerDb } from './db.js';
+import { estadoTareas } from './servicios/tareas.js';
 import { rutasAuth } from './rutas/auth.rutas.js';
 import { rutasUsuarios } from './rutas/usuarios.rutas.js';
 import { rutasProductos, rutasPlanes } from './rutas/catalogo.rutas.js';
 import { rutasClientes } from './rutas/clientes.rutas.js';
 import { rutasVentas, rutasPagos, rutasComprobantes } from './rutas/ventas.rutas.js';
-import { rutasLicencias, rutasLicenciasPublicas } from './rutas/licencias.rutas.js';
+import { rutasLicencias, rutasLicenciasPublicas, rutasVersiones } from './rutas/licencias.rutas.js';
 import { rutasCaja, rutasComisiones, rutasLiquidaciones } from './rutas/caja.rutas.js';
 import { rutasReportes, rutasAuditoria, rutasAjustes, rutasCorreos, rutasErrores, rutasSistema, rutasRenovaciones } from './rutas/sistema.rutas.js';
 import { rutasPublico, rutasWebhooks } from './rutas/publico.rutas.js';
@@ -39,10 +41,19 @@ export function crearApp() {
   app.use(middlewareContexto);
   app.use('/api', rateLimit({ windowMs: 60 * 1000, limit: 600, standardHeaders: 'draft-8', legacyHeaders: false }));
 
-  app.get('/api/v1/salud', (req, res) => res.json({ ok: true, hora: new Date().toISOString() }));
+  app.get('/api/v1/salud', (req, res) => {
+    // Chequeo para el monitor externo: base de datos accesible y planificador vivo (última corrida < 30 min).
+    let db = 'ok';
+    try { obtenerDb().prepare('SELECT 1').get(); } catch { db = 'error'; }
+    const t = estadoTareas();
+    const planificador = !t.ultima_ejecucion ? 'arrancando' : Date.now() - Date.parse(t.ultima_ejecucion) < 30 * 60 * 1000 ? 'ok' : 'detenido';
+    const ok = db === 'ok' && planificador !== 'detenido';
+    res.status(ok ? 200 : 503).json({ ok, hora: new Date().toISOString(), base_datos: db, planificador, ultima_tarea: t.ultima_ejecucion, version: process.env.npm_package_version || null });
+  });
 
   app.use('/api/v1/auth', rutasAuth);
   app.use('/api/v1/usuarios', rutasUsuarios);
+  app.use('/api/v1/productos', rutasVersiones);
   app.use('/api/v1/productos', rutasProductos);
   app.use('/api/v1/planes', rutasPlanes);
   app.use('/api/v1/clientes', rutasClientes);

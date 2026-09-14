@@ -93,6 +93,29 @@ class ControlLicencia
         return ['ok' => true, 'expira_en' => $p['expira_en']];
     }
 
+    /** Versión nueva publicada en CONTROL para este equipo (verificada con la clave pública) o null. */
+    public function buscarActualizacion(): ?array
+    {
+        $r = $this->llamar('actualizacion', ['clave' => $this->clave, 'huella' => $this->huella, 'producto' => $this->producto, 'version' => $this->version]);
+        if (empty($r['ok']) || empty($r['actualizar']) || empty($r['firma']) || !str_contains($r['firma'], '.')) return null;
+        [$cuerpo, $firma] = explode('.', $r['firma'], 2);
+        if (!sodium_crypto_sign_verify_detached(self::b64urlDecode($firma), $cuerpo, base64_decode($this->clavePublicaBase64))) return null;
+        $p = json_decode(self::b64urlDecode($cuerpo), true);
+        if (!is_array($p) || ($p['tipo'] ?? '') !== 'actualizacion' || ($p['producto'] ?? '') !== $this->producto || ($p['version'] ?? '') !== $r['version'] || ($p['url'] ?? '') !== $r['url']) return null;
+        return ['version' => $r['version'], 'notas' => $r['notas'] ?? null, 'url' => $r['url'], 'sha256' => $r['sha256'] ?? null, 'tamano' => $r['tamano'] ?? null];
+    }
+
+    /** Descarga el paquete y comprueba el SHA-256. Devuelve la ruta. */
+    public function descargarActualizacion(array $info, string $destino): string
+    {
+        $datos = @file_get_contents($info['url']);
+        if ($datos === false) throw new \RuntimeException('Descarga fallida');
+        if (!empty($info['sha256']) && hash('sha256', $datos) !== $info['sha256']) throw new \RuntimeException('El archivo descargado no coincide con la firma de CONTROL');
+        @mkdir(dirname($destino), 0775, true);
+        file_put_contents($destino, $datos);
+        return $destino;
+    }
+
     /** Datos para la pantalla estándar "Licencia" (ver sdk/pantalla-licencia/). */
     public function resumen(): array
     {

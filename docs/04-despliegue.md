@@ -109,3 +109,11 @@ SQLite aguanta sin problema decenas de miles de licencias en un solo servidor. S
 varios servidores o réplicas, el siguiente paso es PostgreSQL: el código usa SQL estándar y
 las consultas específicas de SQLite (`date(col, modificador)`, `VACUUM INTO`) están
 concentradas en `db.js` y `tareas.js`.
+
+## Monitoreo
+
+`GET /api/v1/salud` devuelve 200 con `{ ok, base_datos, planificador, ultima_tarea }` y 503
+si la base falla o las tareas automáticas llevan más de 30 minutos sin correr. Apúntale un
+monitor externo (UptimeRobot, Better Stack) cada 5 minutos con aviso a tu correo o Telegram;
+el `HEALTHCHECK` del Dockerfile usa la misma ruta. Los fallos internos del planificador
+además te llegan como alerta `planificador_detenido` por los canales de Ajustes.

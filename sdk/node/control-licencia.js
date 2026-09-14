@@ -116,6 +116,41 @@ export class ControlLicencia {
     return { ok: true, expira_en: p.expira_en };
   }
 
+  /**
+   * ¿Hay versión nueva publicada en CONTROL para este equipo? Devuelve null si no, o
+   * { version, notas, url, sha256, tamano } verificado con la clave pública. Descarga con
+   * `descargarActualizacion(info, rutaDestino)`, que comprueba el SHA-256 antes de dar por buena.
+   */
+  async buscarActualizacion() {
+    const r = await this.llamar('actualizacion', { clave: this.clave, huella: this.huella, producto: this.producto, version: this.version });
+    if (!r.ok || !r.actualizar) return null;
+    const p = this.verificarFirmaLibre(r.firma);
+    if (!p || p.tipo !== 'actualizacion' || p.producto !== this.producto || p.version !== r.version || p.url !== r.url || (p.sha256 || null) !== (r.sha256 || null)) return null;
+    return { version: r.version, notas: r.notas, url: r.url, sha256: r.sha256, tamano: r.tamano };
+  }
+
+  /** Descarga el paquete a `destino` y verifica el SHA-256 (si CONTROL lo conoce). Devuelve la ruta. */
+  async descargarActualizacion(info, destino) {
+    const r = await fetch(info.url);
+    if (!r.ok) throw new Error(`Descarga fallida (${r.status})`);
+    const datos = Buffer.from(await r.arrayBuffer());
+    if (info.sha256) {
+      const hash = createHash('sha256').update(datos).digest('hex');
+      if (hash !== info.sha256) throw new Error('El archivo descargado no coincide con la firma de CONTROL');
+    }
+    mkdirSync(dirname(destino), { recursive: true });
+    writeFileSync(destino, datos);
+    return destino;
+  }
+
+  /** Verifica un token firmado por CONTROL sin exigir que sea de esta licencia (actualizaciones, avisos). */
+  verificarFirmaLibre(token) {
+    if (typeof token !== 'string' || !token.includes('.')) return null;
+    const [cuerpo, firma] = token.split('.');
+    if (!verify(null, Buffer.from(cuerpo), this.publica, Buffer.from(firma, 'base64url'))) return null;
+    try { const p = JSON.parse(Buffer.from(cuerpo, 'base64url').toString('utf8')); if (Date.parse(p.expira_en) < Date.now()) return null; return p; } catch { return null; }
+  }
+
   /** Resumen para la pantalla "Licencia" del producto. */
   resumen() {
     const p = this.estado.payload || {};

@@ -88,6 +88,35 @@ class ControlLicencia:
         self.estado = {"valido": True, "payload": p, "motivo": None}
         return {"ok": True, "expira_en": p["expira_en"]}
 
+    async def buscar_actualizacion(self) -> dict | None:
+        """Versión nueva publicada en CONTROL para este equipo, verificada con la clave pública; None si no hay."""
+        r = await self._llamar("actualizacion", {"clave": self.clave, "huella": self.huella, "producto": self.producto, "version": self.version})
+        if not r.get("ok") or not r.get("actualizar"):
+            return None
+        firma = r.get("firma", "")
+        if "." not in firma:
+            return None
+        cuerpo, sig = firma.split(".", 1)
+        try:
+            self.publica.verify(_b64url_decode(sig), cuerpo.encode())
+            p = json.loads(_b64url_decode(cuerpo))
+        except (InvalidSignature, ValueError):
+            return None
+        if p.get("tipo") != "actualizacion" or p.get("producto") != self.producto or p.get("version") != r.get("version") or p.get("url") != r.get("url"):
+            return None
+        return {"version": r["version"], "notas": r.get("notas"), "url": r["url"], "sha256": r.get("sha256"), "tamano": r.get("tamano")}
+
+    async def descargar_actualizacion(self, info: dict, destino: str) -> str:
+        """Descarga el paquete y comprueba el SHA-256 antes de darlo por bueno."""
+        async with httpx.AsyncClient(timeout=120, follow_redirects=True) as cliente:
+            r = await cliente.get(info["url"])
+        r.raise_for_status()
+        if info.get("sha256") and hashlib.sha256(r.content).hexdigest() != info["sha256"]:
+            raise ValueError("El archivo descargado no coincide con la firma de CONTROL")
+        Path(destino).parent.mkdir(parents=True, exist_ok=True)
+        Path(destino).write_bytes(r.content)
+        return destino
+
     def resumen(self) -> dict:
         """Datos para la pantalla estándar "Licencia" (ver sdk/pantalla-licencia/)."""
         p = self.estado.get("payload") or {}

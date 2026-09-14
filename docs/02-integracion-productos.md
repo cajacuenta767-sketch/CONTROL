@@ -61,6 +61,23 @@ válido solo para la huella indicada. El producto lo verifica con la clave públ
 como token normal (`aplicarCodigoEmergencia()` / `aplicar_codigo_emergencia()`), sin red.
 Queda registrado en `codigos_emergencia` y en la auditoría de la licencia.
 
+## Actualizaciones desde CONTROL
+
+El dueño publica cada versión en **Catálogo › Versiones** (archivo o URL externa). El
+producto pregunta `POST /api/v1/licencias/actualizacion` con `clave`, `huella` y su
+`version`; si hay algo más nuevo recibe `{ version, notas, url, sha256, firma }`. La firma
+es un token Ed25519 con la misma clave pública del SDK; la descarga exige la licencia y el
+SDK comprueba el SHA-256 antes de dar el archivo por bueno:
+
+```js
+const info = await licencia.buscarActualizacion();          // null si ya está al día
+if (info) await licencia.descargarActualizacion(info, './actualizaciones/paquete.zip');
+```
+
+En Python `buscar_actualizacion()` / `descargar_actualizacion()`; en PHP
+`buscarActualizacion()` / `descargarActualizacion()`. Aplicar el paquete (reiniciar,
+migrar) es responsabilidad de cada producto.
+
 ## Pantalla estándar "Licencia"
 
 Todos los productos muestran la misma pantalla (estado, vencimiento, equipo, versión,

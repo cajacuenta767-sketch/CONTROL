@@ -36,6 +36,18 @@ export function Comprar() {
   const total = plan ? plan.precio * cantidad * tc : 0;
 
   if (!cat) return <Marco><Cargando /></Marco>;
+  if (resultado?.demo) {
+    return (
+      <Marco agencia={vendedor?.marca || cat.agencia}>
+        <Tarjeta>
+          <h2>Tu demo está lista</h2>
+          <p>Esta es tu clave de prueba. Instala el sistema y pégala en <strong>Ajustes › Licencia</strong>. Vale hasta el {resultado.demo.vence_en?.slice(0, 10)}.</p>
+          <p><code className="clave" style={{ fontSize: 18 }}>{resultado.demo.clave}</code></p>
+          <Aviso tipo="info">También te la enviamos por correo. Cuando quieras activar la versión completa, entra al <a href={resultado.demo.portal}>portal del cliente</a> con esta clave o escríbenos.</Aviso>
+        </Tarjeta>
+      </Marco>
+    );
+  }
   if (resultado) {
     return (
       <Marco agencia={vendedor?.marca || cat.agencia}>
@@ -60,9 +72,12 @@ export function Comprar() {
           <div className="planes">
             {cat.productos.map((p: any) => (
               <div key={p.id} className="producto-publico">
-                <strong>{p.nombre}</strong>{p.descripcion && <p className="suave pequeno" style={{ margin: '2px 0 6px' }}>{p.descripcion}</p>}
+                <strong>{p.nombre}</strong>{(p.material?.ficha || p.descripcion) && <p className="suave pequeno" style={{ margin: '2px 0 6px' }}>{p.material?.ficha || p.descripcion}</p>}
+                {p.material?.beneficios?.length > 0 && <ul className="pequeno" style={{ margin: '0 0 6px', paddingLeft: 18 }}>{p.material.beneficios.slice(0, 4).map((b: string) => <li key={b}>{b}</li>)}</ul>}
+                {p.material?.capturas?.length > 0 && <div className="material-capturas" style={{ marginBottom: 6 }}>{p.material.capturas.slice(0, 3).map((c: string) => <a key={c} href={c} target="_blank" rel="noreferrer"><img src={c} alt="" style={{ maxWidth: 140 }} /></a>)}</div>}
+                {p.material?.video_url && <p className="pequeno" style={{ margin: '0 0 6px' }}><a href={p.material.video_url} target="_blank" rel="noreferrer">Ver video de demostración</a></p>}
                 <div className="chips">
-                  {p.planes.map((pl: any) => <button key={pl.id} className={`chip ${planId === String(pl.id) ? 'activo' : ''}`} onClick={() => setPlanId(String(pl.id))}>{ETIQUETA_ESTADO[pl.tipo]} · {dinero(pl.precio, cat.moneda_base)}</button>)}
+                  {p.planes.map((pl: any) => <button key={pl.id} className={`chip ${planId === String(pl.id) ? 'activo' : ''}`} onClick={() => setPlanId(String(pl.id))}>{pl.tipo === 'demo' ? `Probar gratis ${pl.duracion_dias || 7} días` : `${ETIQUETA_ESTADO[pl.tipo]} · ${dinero(pl.precio, cat.moneda_base)}${pl.cuotas > 1 ? ` (o ${pl.cuotas} cuotas)` : ''}`}</button>)}
                   {p.planes.length === 0 && <span className="suave pequeno">Consultar</span>}
                 </div>
               </div>
@@ -75,7 +90,7 @@ export function Comprar() {
               if (!plan) throw new Error('Elige un plan');
               const r = await api.post<any>('/publico/pedidos', { plan_id: plan.id, cantidad, ref: ref || undefined, moneda, pasarela: pasarela || undefined, cliente: { ...cliente, empresa: cliente.empresa || undefined, telefono: cliente.telefono || undefined, pais: cliente.pais || undefined } });
               setResultado(r);
-            }} textoBoton={pasarela ? 'Continuar al pago' : 'Enviar pedido'}>
+            }} textoBoton={plan?.tipo === 'demo' ? 'Activar mi demo gratis' : pasarela ? 'Continuar al pago' : 'Enviar pedido'}>
               <Campo etiqueta="Nombre"><input value={cliente.nombre} onChange={(e) => setCliente({ ...cliente, nombre: e.target.value })} required /></Campo>
               <Campo etiqueta="Negocio"><input value={cliente.empresa} onChange={(e) => setCliente({ ...cliente, empresa: e.target.value })} /></Campo>
               <Campo etiqueta="Correo"><input type="email" value={cliente.email} onChange={(e) => setCliente({ ...cliente, email: e.target.value })} required /></Campo>
@@ -85,7 +100,7 @@ export function Comprar() {
                 <Campo etiqueta="Moneda"><select value={moneda} onChange={(e) => setMoneda(e.target.value)}>{Object.keys(cat.tipos_cambio || { [cat.moneda_base]: 1 }).map((m) => <option key={m} value={m}>{m}</option>)}</select></Campo>
                 <Campo etiqueta="Pago"><select value={pasarela} onChange={(e) => setPasarela(e.target.value)}><option value="">Coordinar después</option>{Object.entries(cat.pasarelas).filter(([, on]) => on).map(([k]) => <option key={k} value={k}>{k === 'demo' ? 'Demostración' : k === 'stripe' ? 'Tarjeta (Stripe)' : k === 'culqi' ? 'Yape / tarjeta (Culqi)' : 'PayPal'}</option>)}</select></Campo>
               </div>
-              <div className="indicador" style={{ marginBottom: 12 }}><span className="indicador-etiqueta">Total</span><strong className="indicador-valor">{plan ? dinero(total, moneda) : '—'}</strong>{plan && <span className="indicador-detalle">{plan.producto.nombre} · {ETIQUETA_ESTADO[plan.tipo]} × {cantidad}</span>}</div>
+              <div className="indicador" style={{ marginBottom: 12 }}><span className="indicador-etiqueta">Total</span><strong className="indicador-valor">{plan ? plan.tipo === 'demo' ? 'Gratis' : dinero(total, moneda) : '—'}</strong>{plan && <span className="indicador-detalle">{plan.producto.nombre} · {ETIQUETA_ESTADO[plan.tipo]} × {cantidad}</span>}</div>
             </Formulario>
           </Tarjeta>
         </div>

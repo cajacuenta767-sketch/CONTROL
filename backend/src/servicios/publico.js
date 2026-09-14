@@ -3,16 +3,18 @@ import { ErrorHttp, noEncontrado } from '../middleware/errores.js';
 import { auditar } from './auditoria.js';
 import { crearVenta, obtenerVenta } from './ventas.js';
 import { crearEnlace, proveedoresDisponibles } from './pagos_en_linea.js';
+import { enviarCorreo, plantilla } from './correo.js';
+import { alertarDuenoSinEsperar } from './mensajeria.js';
 
 /** Catálogo público: productos activos con sus planes vendibles (sin demo). */
 export function catalogoPublico() {
   const db = obtenerDb();
   const productos = db.prepare('SELECT id, codigo, nombre, descripcion, version_actual, material FROM productos WHERE activo = 1 ORDER BY nombre').all()
     .map((p) => { let m = null; try { m = p.material ? JSON.parse(p.material) : null; } catch { m = null; } return { ...p, material: m ? { ficha: m.ficha, video_url: m.video_url, capturas: m.capturas, beneficios: m.beneficios } : null }; });
-  const planes = db.prepare("SELECT id, producto_id, codigo, nombre, tipo, precio, duracion_dias, max_activaciones FROM planes WHERE activo = 1 AND tipo IN ('mensual','anual','vitalicio') ORDER BY precio").all();
+  const planes = db.prepare("SELECT id, producto_id, codigo, nombre, tipo, precio, duracion_dias, max_activaciones, cuotas FROM planes WHERE activo = 1 AND tipo IN ('mensual','anual','vitalicio','demo') ORDER BY CASE tipo WHEN 'demo' THEN 0 ELSE 1 END, precio").all();
   return {
     agencia: ajuste('nombre_agencia', 'CONTROL'), moneda_base: ajuste('moneda_base', 'USD'),
-    tipos_cambio: JSON.parse(ajuste('tipos_cambio', '{}') || '{}'), pasarelas: proveedoresDisponibles(),
+    tipos_cambio: JSON.parse(ajuste('tipos_cambio', '{}') || '{}'), pasarelas: proveedoresDisponibles(), demo_autoservicio: ajuste('demo_autoservicio', '1') === '1',
     productos: productos.map((p) => ({ ...p, planes: planes.filter((pl) => pl.producto_id === p.id) })),
   };
 }
@@ -32,7 +34,13 @@ export function vendedorPorCodigo(codigo) {
 export async function crearPedido(datos, { origen, ip }) {
   const db = obtenerDb();
   const plan = db.prepare('SELECT * FROM planes WHERE id = ? AND activo = 1').get(datos.plan_id);
-  if (!plan || plan.tipo === 'demo') throw noEncontrado('Plan no disponible');
+  if (!plan) throw noEncontrado('Plan no disponible');
+  if (plan.tipo === 'demo') {
+    if (ajuste('demo_autoservicio', '1') !== '1') throw new ErrorHttp(403, 'La demo se instala con un asesor');
+    // Una demo por correo y producto: evita que un mismo negocio encadene demos gratis.
+    const previa = db.prepare("SELECT l.id FROM licencias l JOIN clientes c ON c.id = l.cliente_id JOIN planes pl ON pl.id = l.plan_id WHERE lower(c.email) = ? AND pl.tipo = 'demo' AND l.producto_id = ?").get(String(datos.cliente.email || '').toLowerCase(), plan.producto_id);
+    if (previa) throw new ErrorHttp(409, 'Ya probaste este sistema. Escríbenos y te ayudamos a activarlo.');
+  }
 
   const vendedor = vendedorPorCodigo(datos.ref);
   const casa = db.prepare("SELECT id FROM usuarios WHERE rol = 'superadmin' AND activo = 1 ORDER BY id LIMIT 1").get();
@@ -57,8 +65,15 @@ export async function crearPedido(datos, { origen, ip }) {
     superadmin, { origen: `${origen}${datos.ref ? ` · ref ${datos.ref}` : ''}` }
   );
   let enlace = null;
-  if (datos.pasarela) enlace = await crearEnlace(venta.id, datos.pasarela, superadmin);
-  return { venta: { id: venta.id, numero: venta.numero, total: venta.total, moneda: venta.moneda, estado: venta.estado }, cliente_id: cliente.id, enlace_pago: enlace ? { id: enlace.id, url: enlace.url, proveedor: enlace.proveedor } : null };
+  if (datos.pasarela && plan.tipo !== 'demo') enlace = await crearEnlace(venta.id, datos.pasarela, superadmin);
+  const salida = { venta: { id: venta.id, numero: venta.numero, total: venta.total, moneda: venta.moneda, estado: venta.estado }, cliente_id: cliente.id, enlace_pago: enlace ? { id: enlace.id, url: enlace.url, proveedor: enlace.proveedor } : null };
+  if (plan.tipo === 'demo') {
+    const lic = db.prepare('SELECT clave, vence_en FROM licencias WHERE venta_id = ?').get(venta.id);
+    salida.demo = { clave: lic.clave, vence_en: lic.vence_en, portal: `${ajuste('url_publica', 'http://localhost:5173').replace(/\/$/, '')}/portal` };
+    if (email) await enviarCorreo({ para: email, asunto: `Tu demo de ${venta.producto_nombre || 'nuestro sistema'} está lista`, html: plantilla('Demo activada', `<p>Hola ${cliente.nombre}. Tu clave de prueba es <code>${lic.clave}</code> y vence el ${String(lic.vence_en).slice(0, 10)}.</p><p>Instala el sistema y pega la clave en Ajustes › Licencia. Cuando quieras activar la versión completa, compra desde el portal o escríbenos.</p>`, { boton: 'Entrar al portal', url: salida.demo.portal }) });
+    alertarDuenoSinEsperar('ticket_nuevo', `Demo autoservicio: ${cliente.nombre} (${email}) probó ${venta.producto_nombre || 'un producto'}`, { referencia: `demo:${venta.id}`, url: `/clientes/${cliente.id}` });
+  }
+  return salida;
 }
 
 export function estadoPedidoPublico(numero, email) {

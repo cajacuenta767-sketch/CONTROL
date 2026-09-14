@@ -100,3 +100,14 @@ está cubierto por tests del backend (`npm test`, 59 pruebas) o por la suite de 
 | Versión y aviso de desactualización | Versión vigente por producto en Catálogo; `desactualizada` en cada respuesta; alerta en el panel y etiqueta por equipo. |
 | Código de emergencia | Token firmado de 72 h por equipo, emitido desde la licencia, auditado; los tres SDK lo aceptan sin red. |
 | SDK como paquete | `sdk/node` tiene `package.json` propio para publicarlo en un registro privado o instalarlo por ruta. |
+
+## Tercera ronda: lo que se sumó después
+
+| Área | Qué se construyó |
+|---|---|
+| Cobros | Culqi (Yape, tarjetas, PagoEfectivo) con webhook verificado; cuotas con activación a la primera y pausa por cuota vencida; recordatorios automáticos de cobro y vencimiento por WhatsApp Cloud API |
+| Retención | Semáforo de salud por cliente, widget de clientes en riesgo, encuesta de una pregunta en el portal, campañas de renovación con enlaces y mensajes masivos |
+| Ventas | PWA instalable con carcasa en caché, tablero del equipo, material de venta por producto, prospectos con embudo y conversión a cliente |
+| Operación | Facturación electrónica (Nubefact/SUNAT o manual) con emisión automática, alertas al dueño por Telegram/WhatsApp/correo, roles soporte y contador, Excel contable mensual |
+| Producto | Versiones publicadas con SHA-256 y descarga firmada desde CONTROL, SDK con `buscarActualizacion()`, demo autoservicio en la página de compra, chequeo de salud para monitoreo externo |
+| Documentación | `docs/06-lo-que-necesito-de-ti.md`: cuentas, credenciales y datos que debe entregar el dueño, con dónde se consiguen y dónde se pegan |

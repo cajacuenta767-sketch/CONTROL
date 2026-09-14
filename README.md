@@ -24,13 +24,18 @@ ReservaFlow, Avendia, BARBER-PRO…) desde un solo panel.
 | Operación | Tareas programadas (avisos de vencimiento, recordatorio de caja, renovación automática, respaldos con rotación), correo SMTP, registro de errores, Docker + Caddy |
 | Panel | Búsqueda global (Ctrl+K), paginación en servidor, modo oscuro, reportes mensuales, línea de tiempo del cliente, tickets de soporte, plantillas de WhatsApp, accesible por teclado |
 | Precios y roles | Lista de precios editable solo por el dueño (niveles, ajuste porcentual, historial), simulador de venta, topes de descuento por rol, guía "Cómo funciona" con la matriz de permisos; admin y vendedor no ven comisiones ajenas, auditoría ni ajustes |
-| Integración | SDK Node, PHP y Python; pantalla estándar "Licencia"; versión vigente por producto con alerta de instalaciones desactualizadas; código de emergencia de 72 h sin internet |
+| Integración | SDK Node, PHP y Python; pantalla estándar "Licencia"; versión vigente por producto con alerta de instalaciones desactualizadas; código de emergencia de 72 h sin internet; actualizaciones firmadas descargables desde CONTROL |
+| Cobros | Culqi (Yape, tarjetas, PagoEfectivo) además de Stripe y PayPal; pago en cuotas con activación a la primera y pausa por cuota vencida; recordatorios automáticos por WhatsApp Cloud API |
+| Retención | Semáforo de salud por cliente, encuesta de una pregunta en el portal, campañas de renovación masivas |
+| Ventas | PWA instalable, tablero del equipo, material de venta por producto, prospectos con embudo, demo autoservicio en la web de compra |
+| Operación | Facturación electrónica (Nubefact/SUNAT o manual), alertas al dueño por Telegram/WhatsApp/correo, roles soporte y contador, Excel contable mensual, chequeo de salud para monitoreo externo |
 
 La especificación completa está en [`docs/01-especificacion.md`](docs/01-especificacion.md),
 la guía para conectar cada producto en [`docs/02-integracion-productos.md`](docs/02-integracion-productos.md)
 la revisión y el estado de cada mejora en [`docs/03-revision-y-mejoras.md`](docs/03-revision-y-mejoras.md)
-el despliegue en [`docs/04-despliegue.md`](docs/04-despliegue.md) y la lista de precios por tipo de
-negocio en [`docs/05-precios-y-posicionamiento.md`](docs/05-precios-y-posicionamiento.md).
+el despliegue en [`docs/04-despliegue.md`](docs/04-despliegue.md) la lista de precios por tipo de
+negocio en [`docs/05-precios-y-posicionamiento.md`](docs/05-precios-y-posicionamiento.md) y la
+lista de cuentas y datos que debe entregar el dueño en [`docs/06-lo-que-necesito-de-ti.md`](docs/06-lo-que-necesito-de-ti.md).
 
 ## Puesta en marcha
 
@@ -61,7 +66,7 @@ SUPERADMIN_EMAIL=tu@correo.com SUPERADMIN_NOMBRE="Tu nombre" SUPERADMIN_CLAVE='U
 | Comando | Qué hace |
 |---|---|
 | `npm run dev` | API y panel en modo desarrollo |
-| `npm test` | Tests del backend (59: flujo completo, seguridad, dinero, tareas, portal, emergencia, precios y roles) |
+| `npm test` | Tests del backend (81: flujo completo, seguridad, dinero, tareas, portal, emergencia, precios y roles, cobros, retención, prospectos, operación, producto) |
 | `npm run e2e` | Compila el panel y recorre 16 flujos en Chromium con Playwright (servidor temporal sembrado) |
 | `npm run build` | Compila el panel en `frontend/dist`; la API lo sirve sola en producción |
 | `npm start` | Arranca la API (sirve el panel compilado en el mismo puerto) |
@@ -100,6 +105,8 @@ docs/      Especificación e integración
 | `GET` | `/api/v1/publico/catalogo` | Catálogo, precios y pasarelas para la página de compra |
 | `POST` | `/api/v1/publico/pedidos` | Pedido externo (DevMarket, web) con `X-Api-Key` opcional |
 | `POST` | `/api/v1/portal/acceso` | Portal del cliente: clave de licencia + correo o teléfono |
+| `POST` | `/api/v1/licencias/actualizacion` | `{ clave, huella, producto?, version? }` → versión nueva firmada con URL y SHA-256 |
+| `GET` | `/api/v1/salud` | Chequeo para el monitor externo: base de datos y planificador (503 si falla) |
 
 Con sesión, `POST /api/v1/licencias/:id/emergencia` emite un código firmado de 72 h para un
 equipo concreto; el producto lo acepta sin red (ver `sdk/pantalla-licencia/`).

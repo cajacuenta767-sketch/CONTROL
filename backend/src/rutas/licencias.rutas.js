@@ -1,9 +1,12 @@
 import { Router } from 'express';
+import multer from 'multer';
+import { extname } from 'node:path';
+import { buscarActualizacion, archivoDescarga, listarVersiones, publicarVersion, despublicarVersion, asegurarDirVersiones } from '../servicios/versiones.js';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { validar } from '../middleware/validar.js';
 import { requerirAuth, requerirRol } from '../middleware/auth.js';
-import { asincrono } from '../middleware/errores.js';
+import { asincrono, ErrorHttp } from '../middleware/errores.js';
 import { obtenerClaves } from '../firmas.js';
 import {
   listarLicencias, obtenerLicencia, actualizarEtiqueta, cambiarEstado, resetearActivaciones,
@@ -28,6 +31,12 @@ const esquemaActivar = z.object({
   version: z.string().max(40).optional(),
 });
 
+rutasLicenciasPublicas.post('/actualizacion', validar(z.object({ clave: z.string().min(10), huella: z.string().min(4), producto: z.string().optional(), version: z.string().optional() })),
+  asincrono((req, res) => res.json(buscarActualizacion(req.datos))));
+rutasLicenciasPublicas.get('/actualizacion/:id/descargar', asincrono((req, res) => {
+  const { ruta, nombre } = archivoDescarga(Number(req.params.id), { clave: String(req.query.clave || ''), huella: String(req.query.huella || '') });
+  res.download(ruta, nombre);
+}));
 rutasLicenciasPublicas.post('/activar', validar(esquemaActivar), asincrono((req, res) => res.json(activar({ ...req.datos, ip: req.ip }))));
 rutasLicenciasPublicas.post(
   '/latido',
@@ -70,3 +79,15 @@ rutasLicencias.post(
   validar(z.object({ huella: z.string().min(4).max(128), motivo: z.string().min(3).max(300) })),
   asincrono((req, res) => res.status(201).json(crearCodigoEmergencia(Number(req.params.id), req.datos, req.usuario)))
 );
+
+/* ---------- Versiones publicadas (solo superadmin) ---------- */
+const subirVersion = multer({
+  storage: multer.diskStorage({ destination: (req, file, cb) => cb(null, asegurarDirVersiones()), filename: (req, file, cb) => cb(null, `p${req.params.id}-${Date.now()}${extname(file.originalname || '').toLowerCase().slice(0, 8) || '.bin'}`) }),
+  limits: { fileSize: 500 * 1024 * 1024 },
+});
+export const rutasVersiones = Router();
+const soloDueno = [requerirAuth, requerirRol('superadmin')];
+rutasVersiones.get('/:id/versiones', ...soloDueno, asincrono((req, res) => res.json(listarVersiones(Number(req.params.id)))));
+rutasVersiones.post('/:id/versiones', ...soloDueno, (req, res, next) => subirVersion.single('archivo')(req, res, (e) => next(e ? new ErrorHttp(422, e.code === 'LIMIT_FILE_SIZE' ? 'El archivo supera 500 MB' : e.message) : undefined)),
+  asincrono((req, res) => res.status(201).json(publicarVersion(Number(req.params.id), { version: req.body.version, notas: req.body.notas, archivo: req.file?.filename, url_externa: req.body.url_externa || undefined, marcar_actual: req.body.marcar_actual !== '0' && req.body.marcar_actual !== false }, req.usuario))));
+rutasVersiones.delete('/:id/versiones/:vid', ...soloDueno, asincrono((req, res) => res.json(despublicarVersion(Number(req.params.vid), req.usuario))));
